@@ -60,7 +60,7 @@
         <maven.compiler.release>17</maven.compiler.release>
 
         <!-- Dependency versions -->
-        <slf4j.version>2.0.13</slf4j.version>
+        <slf4j.version>2.0.18</slf4j.version>
         <jackson.version>2.17.2</jackson.version>
         <jspecify.version>1.0.0</jspecify.version>
 
