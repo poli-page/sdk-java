@@ -1,0 +1,76 @@
+---
+title: Quick start
+description: Render your first PDF with the Poli Page Java SDK in under 30 seconds.
+---
+
+import ApiKeyCallout from '@preset/components/ApiKeyCallout.astro';
+
+This page walks through your first render — from key to PDF — without touching the dashboard.
+
+<ApiKeyCallout />
+
+## Set your API key
+
+Export your key into the environment your program runs in:
+
+```bash
+export POLI_PAGE_API_KEY=pp_test_...
+```
+
+## Render a PDF
+
+```java
+import java.util.Map;
+import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.input.ProjectModeInput;
+
+class Example {
+    public static void main(String[] args) {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .build();
+
+        ProjectModeInput input = ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+            .build();
+
+        byte[] pdf = client.render().pdf(input);
+    }
+}
+```
+
+`pdf` is a `byte[]`. Write it to disk, stream it to S3, or return it directly from an HTTP handler.
+
+## Example
+
+```java
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.input.ProjectModeInput;
+
+class Example {
+    public static void main(String[] args) throws Exception {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .build();
+
+        ProjectModeInput input = ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+            .build();
+
+        byte[] pdf = client.render().pdf(input);
+        Files.write(Path.of("./invoice.pdf"), pdf);
+    }
+}
+```
+
+## See also
+- [Authentication](../../concepts/authentication/)
+- [Render modes](../../concepts/render-modes/)
+- [Output handling](../../concepts/output-handling/)

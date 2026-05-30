@@ -7,7 +7,8 @@
 
 Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 
-→ API reference (auto-generated from Javadoc): **[javadoc.io/doc/page.poli/sdk](https://javadoc.io/doc/page.poli/sdk)**
+→ Full documentation: **[poli-page.github.io/sdk-java](https://poli-page.github.io/sdk-java/)**
+→ Javadoc: **[javadoc.io/doc/page.poli/sdk](https://javadoc.io/doc/page.poli/sdk)**
 
 ## Install
 

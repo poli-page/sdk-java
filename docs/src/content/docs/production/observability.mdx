@@ -1,0 +1,49 @@
+---
+title: Observability
+description: Hooks for logging retries and terminal errors without coupling to a logger.
+---
+
+The SDK exposes two optional hooks on `PoliPageClient.Builder`: `onRetry` and `onError`. They give you the raw signal needed to instrument the SDK with whatever logger or tracing library you use, without baking a dependency into the SDK itself. Internal SLF4J logging is independent — hooks supplement it, they do not replace it.
+
+## The hooks
+
+- `onRetry(Consumer<RetryEvent>)` — fires synchronously, just before the SDK sleeps between attempts. `event.attempt()`, `event.delay()`, `event.statusCode()`, `event.reason()` (`"5xx"` / `"rate_limit"` / `"timeout"` / `"network_error"`).
+- `onError(Consumer<Throwable>)` — fires when the retry loop is about to surface a terminal transport failure. Does **not** fire for wire-mapped exceptions (4xx) — those are not in scope of "retry exhausted".
+
+Both hooks are invoked synchronously on the calling thread. A hook that throws is caught and swallowed — a faulty hook will never break the request.
+
+## Tracing
+
+For OpenTelemetry, wrap the call site in a span and record the SDK's `RetryEvent` as span events. The blocking facade keeps you on the caller's thread; the async facade chains on whatever executor the future is completed on.
+
+## Example
+
+```java
+import java.util.Map;
+import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.input.ProjectModeInput;
+
+class Example {
+    public static void main(String[] args) {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .onRetry(event -> System.out.printf(
+                "retry attempt=%d delay=%s reason=%s status=%s%n",
+                event.attempt(), event.delay(), event.reason(), event.statusCode()))
+            .onError(err -> System.err.println("terminal: " + err.getMessage()))
+            .build();
+
+        ProjectModeInput input = ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+            .build();
+
+        byte[] pdf = client.render().pdf(input);
+    }
+}
+```
+
+## See also
+- [Configuration](../../concepts/configuration/)
+- [Errors](../errors/)

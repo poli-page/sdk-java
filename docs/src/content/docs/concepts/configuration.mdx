@@ -1,0 +1,42 @@
+---
+title: Configuration
+description: Per-client options for timeouts, retries, and observability hooks.
+---
+
+The `PoliPageClient.Builder` accepts fluent setters for every option. Only `apiKey` is required. Defaults match the canonical SDK behavior shared by every Poli Page SDK.
+
+## Available options
+
+- `apiKey(String)` (required) — your `pp_test_` or `pp_live_` key.
+- `baseUrl(URI)` — override the API endpoint. Defaults to `https://api.poli.page`.
+- `requestTimeout(Duration)` — per-request timeout. Defaults to `Duration.ofSeconds(60)`.
+- `maxRetries(int)` — maximum retry attempts for retryable errors. Defaults to `2` (three total attempts).
+- `retryDelay(Duration)` — initial retry backoff. Defaults to `Duration.ofMillis(500)`. Doubles each attempt with jitter.
+- `onRetry(Consumer<RetryEvent>)` — fired just before each retry sleep. Use for metrics, traces, structured logs.
+- `onError(Consumer<Throwable>)` — fired when the SDK is about to surface a terminal transport failure.
+
+## Example
+
+```java
+import java.time.Duration;
+import page.poli.sdk.PoliPageClient;
+
+class Example {
+    public static void main(String[] args) {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .requestTimeout(Duration.ofSeconds(30))
+            .maxRetries(3)
+            .retryDelay(Duration.ofMillis(250))
+            .onRetry(event -> System.out.println(
+                "retry attempt=" + event.attempt() + " reason=" + event.reason()))
+            .onError(err -> System.err.println("terminal: " + err.getMessage()))
+            .build();
+    }
+}
+```
+
+## See also
+- [Authentication](../authentication/)
+- [Observability](../../production/observability/)
+- [Retries and idempotency](../../production/retries-and-idempotency/)
