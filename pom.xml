@@ -65,7 +65,7 @@
         <jspecify.version>1.0.0</jspecify.version>
 
         <!-- Test dependency versions -->
-        <junit.version>5.10.2</junit.version>
+        <junit.version>6.1.0</junit.version>
         <assertj.version>3.27.7</assertj.version>
         <wiremock.version>3.13.2</wiremock.version>
 
