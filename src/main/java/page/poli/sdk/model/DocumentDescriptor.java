@@ -6,13 +6,13 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Wire-shape representation of a stored document. Returned by {@code POST /v1/render} (via
- * {@link page.poli.sdk.Render#document}) and {@code GET /v1/documents/{id}} (via {@code
+ * Wire-shape representation of a stored document. Returned by {@code POST /v1/render} (via {@link
+ * page.poli.sdk.Render#document}) and {@code GET /v1/documents/{id}} (via {@code
  * client.documents().get(...)} in Phase 6).
  *
- * <p>Top-level fields are system-controlled; {@link #metadata} echoes the caller-supplied bag.
- * Use {@link #presignedPdfUrl()} to fetch the rendered PDF bytes (the URL has a short TTL — get a
- * fresh one by calling {@code documents().get(id)} when {@link #expiresAt} is past).
+ * <p>Top-level fields are system-controlled; {@link #metadata} echoes the caller-supplied bag. Use
+ * {@link #presignedPdfUrl()} to fetch the rendered PDF bytes (the URL has a short TTL — get a fresh
+ * one by calling {@code documents().get(id)} when {@link #expiresAt} is past).
  *
  * <p>The matching shape on the Node SDK is {@code RawDocumentDescriptor}; the deployed API is the
  * source of truth when the two disagree.

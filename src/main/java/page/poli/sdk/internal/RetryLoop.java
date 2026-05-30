@@ -25,15 +25,15 @@ import page.poli.sdk.exception.PoliPageNetworkException;
  * <ul>
  *   <li>Retryable HTTP statuses: {@code 5xx} and {@code 429}.
  *   <li>Retryable exceptions: {@link IOException}, {@link HttpTimeoutException}.
- *   <li>{@link InterruptedException} is never retried — surfaced as a
- *       {@link PoliPageException} with code {@code "aborted"}.
+ *   <li>{@link InterruptedException} is never retried — surfaced as a {@link PoliPageException}
+ *       with code {@code "aborted"}.
  *   <li>{@code maxRetries == 0} effectively disables retries.
  * </ul>
  *
  * <p>The loop returns the {@link HttpResponse} it actually got — either a 2xx, a final
  * non-retryable status (4xx other than 429), or a retryable status after retries were exhausted.
- * The caller is responsible for status-code -> exception mapping via {@link ErrorParsing}. The
- * loop only throws when the underlying transport threw and retries were exhausted.
+ * The caller is responsible for status-code -> exception mapping via {@link ErrorParsing}. The loop
+ * only throws when the underlying transport threw and retries were exhausted.
  */
 public final class RetryLoop {
 
@@ -82,8 +82,8 @@ public final class RetryLoop {
    * Execute the given transport call, retrying as configured.
    *
    * @param call the transport call to run; invoked up to {@code maxRetries + 1} times
-   * @param label human-readable description used in exception messages (e.g.
-   *     {@code "POST /v1/render"})
+   * @param label human-readable description used in exception messages (e.g. {@code "POST
+   *     /v1/render"})
    * @return the final {@link HttpResponse} — either 2xx, a non-retryable status, or the last
    *     retryable status after retries were exhausted
    * @throws PoliPageNetworkException on a transport failure that wasn't recovered by retries
@@ -190,17 +190,17 @@ public final class RetryLoop {
   // ===== Async path =================================================
 
   /**
-   * Asynchronous counterpart of {@link #execute(IoCall, String)}. Uses
-   * {@link CompletableFuture#delayedExecutor(long, TimeUnit)} for inter-attempt back-off, so no
-   * worker thread is blocked while waiting.
+   * Asynchronous counterpart of {@link #execute(IoCall, String)}. Uses {@link
+   * CompletableFuture#delayedExecutor(long, TimeUnit)} for inter-attempt back-off, so no worker
+   * thread is blocked while waiting.
    *
    * <p>The returned future:
    *
    * <ul>
    *   <li>completes with the final {@link HttpResponse} (2xx, non-retryable, or last retryable
    *       after exhaustion)
-   *   <li>completes exceptionally with {@link PoliPageNetworkException} on transport failure
-   *       that wasn't recovered by retries
+   *   <li>completes exceptionally with {@link PoliPageNetworkException} on transport failure that
+   *       wasn't recovered by retries
    *   <li>completes exceptionally with {@link CancellationException} when the original supplier
    *       returned a cancelled future (caller-side cancel propagates per JDK convention)
    * </ul>
@@ -258,9 +258,7 @@ public final class RetryLoop {
         }
         PoliPageNetworkException terminal =
             new PoliPageNetworkException(
-                PoliPageErrorCode.NETWORK_ERROR,
-                label + " failed: " + cause.getMessage(),
-                cause);
+                PoliPageErrorCode.NETWORK_ERROR, label + " failed: " + cause.getMessage(), cause);
         fireOnError(terminal);
         return CompletableFuture.failedFuture(terminal);
       }

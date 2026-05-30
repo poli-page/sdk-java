@@ -16,10 +16,10 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Default {@link Transport} implementation backed by the JDK's {@link HttpClient} and Jackson's
- * {@link ObjectMapper}. Stateless apart from the injected configuration. Sync verbs use
- * {@link HttpClient#send(HttpRequest, HttpResponse.BodyHandler)}; async verbs use
- * {@link HttpClient#sendAsync(HttpRequest, HttpResponse.BodyHandler)} and share the same
- * request-building code.
+ * {@link ObjectMapper}. Stateless apart from the injected configuration. Sync verbs use {@link
+ * HttpClient#send(HttpRequest, HttpResponse.BodyHandler)}; async verbs use {@link
+ * HttpClient#sendAsync(HttpRequest, HttpResponse.BodyHandler)} and share the same request-building
+ * code.
  */
 public final class HttpTransport implements Transport {
 
@@ -138,10 +138,10 @@ public final class HttpTransport implements Transport {
   }
 
   /**
-   * Build the request inside a try/catch so that a request-construction failure (e.g.
-   * {@link UncheckedIOException} from JSON serialization) surfaces as a failed future, never as
-   * a thrown exception from an async method. Keeps the async contract clean of checked or
-   * eager-throw failure modes.
+   * Build the request inside a try/catch so that a request-construction failure (e.g. {@link
+   * UncheckedIOException} from JSON serialization) surfaces as a failed future, never as a thrown
+   * exception from an async method. Keeps the async contract clean of checked or eager-throw
+   * failure modes.
    */
   private <T> CompletableFuture<HttpResponse<T>> safeSendAsync(
       RequestSupplier supplier, HttpResponse.BodyHandler<T> handler) {

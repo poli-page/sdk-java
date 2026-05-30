@@ -15,9 +15,9 @@ import java.util.concurrent.CompletableFuture;
  *   <li>{@link #getPresigned(URI)} — plain, unauthenticated GET to a presigned S3 URL.
  * </ul>
  *
- * <p>Later phases expand the interface with sync GET / DELETE (Phase 6) and async variants
- * (Phase 7). Retry orchestration (Phase 4) wraps an instance of this interface rather than living
- * inside it.
+ * <p>Later phases expand the interface with sync GET / DELETE (Phase 6) and async variants (Phase
+ * 7). Retry orchestration (Phase 4) wraps an instance of this interface rather than living inside
+ * it.
  */
 public interface Transport {
 
@@ -36,8 +36,8 @@ public interface Transport {
       throws IOException, InterruptedException;
 
   /**
-   * Send a GET to {@code baseUrl + path} with auth / accept / user-agent headers (no
-   * {@code Content-Type}, no {@code Idempotency-Key} — per Node SDK {@code internal/http.ts}).
+   * Send a GET to {@code baseUrl + path} with auth / accept / user-agent headers (no {@code
+   * Content-Type}, no {@code Idempotency-Key} — per Node SDK {@code internal/http.ts}).
    *
    * @param path path relative to the configured base URL (e.g. {@code "/v1/documents/foo"})
    * @return the raw response with bytes body
@@ -68,10 +68,10 @@ public interface Transport {
   HttpResponse<byte[]> getPresigned(URI url) throws IOException, InterruptedException;
 
   /**
-   * Stream-flavoured counterpart of {@link #getPresigned(URI)}: return the body as an
-   * {@link InputStream} so the caller can read large PDFs without buffering the full payload.
-   * The returned {@code InputStream} owns the HTTP connection; the caller MUST close it
-   * (try-with-resources) or the connection is leaked from the pool.
+   * Stream-flavoured counterpart of {@link #getPresigned(URI)}: return the body as an {@link
+   * InputStream} so the caller can read large PDFs without buffering the full payload. The returned
+   * {@code InputStream} owns the HTTP connection; the caller MUST close it (try-with-resources) or
+   * the connection is leaked from the pool.
    *
    * @param url the presigned URL returned in a {@code DocumentDescriptor}
    * @return response with an {@link InputStream} body

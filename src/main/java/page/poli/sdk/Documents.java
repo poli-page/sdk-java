@@ -30,10 +30,10 @@ import page.poli.sdk.model.ThumbnailOptions;
  *   <li>{@link #delete(String)} — soft-delete a stored document
  * </ul>
  *
- * <p>All four methods run through the SDK's {@link RetryLoop}. {@code delete} is idempotent on
- * the server side; the SDK retries on 5xx/429 like the other verbs. A re-delete of an
- * already-deleted document surfaces as
- * {@link page.poli.sdk.exception.PoliPageGoneException} (410), not an error to swallow.
+ * <p>All four methods run through the SDK's {@link RetryLoop}. {@code delete} is idempotent on the
+ * server side; the SDK retries on 5xx/429 like the other verbs. A re-delete of an already-deleted
+ * document surfaces as {@link page.poli.sdk.exception.PoliPageGoneException} (410), not an error to
+ * swallow.
  */
 public final class Documents {
 
@@ -68,9 +68,9 @@ public final class Documents {
 
   /**
    * Fetch the stored document's HTML preview and the {@code X-Document-Page-Count} header,
-   * assembled into a {@link DocumentPreviewResult}. The deployed API responds with
-   * {@code text/html} directly (not a JSON envelope) — the SDK reads the body as UTF-8 text and
-   * the page count from the header.
+   * assembled into a {@link DocumentPreviewResult}. The deployed API responds with {@code
+   * text/html} directly (not a JSON envelope) — the SDK reads the body as UTF-8 text and the page
+   * count from the header.
    *
    * @param id the document ID
    * @return the preview result; {@link DocumentPreviewResult#pageCount()} is {@code 0} if the
@@ -89,9 +89,9 @@ public final class Documents {
   /**
    * Request thumbnails of the stored document.
    *
-   * <p>The deployed API wraps the request body under a {@code "thumbnails"} key and returns
-   * the array under the same key — the SDK handles both translations so callers just deal in
-   * {@link ThumbnailOptions} and {@code List<Thumbnail>}.
+   * <p>The deployed API wraps the request body under a {@code "thumbnails"} key and returns the
+   * array under the same key — the SDK handles both translations so callers just deal in {@link
+   * ThumbnailOptions} and {@code List<Thumbnail>}.
    *
    * @param id the document ID
    * @param options the thumbnail options
@@ -110,9 +110,9 @@ public final class Documents {
   }
 
   /**
-   * Soft-delete a stored document. The deleted document can no longer be fetched; subsequent
-   * {@link #get(String)} or {@link #preview(String)} calls will throw
-   * {@link page.poli.sdk.exception.PoliPageGoneException} (HTTP 410).
+   * Soft-delete a stored document. The deleted document can no longer be fetched; subsequent {@link
+   * #get(String)} or {@link #preview(String)} calls will throw {@link
+   * page.poli.sdk.exception.PoliPageGoneException} (HTTP 410).
    *
    * @param id the document ID
    * @throws PoliPageException on any non-2xx response after retries, or transport failure
@@ -153,9 +153,9 @@ public final class Documents {
   }
 
   /**
-   * Percent-encode a path segment. {@code URLEncoder.encode} encodes for
-   * {@code x-www-form-urlencoded} (spaces become {@code +}); the {@code +} -> {@code %20}
-   * substitution fixes that for path segments.
+   * Percent-encode a path segment. {@code URLEncoder.encode} encodes for {@code
+   * x-www-form-urlencoded} (spaces become {@code +}); the {@code +} -> {@code %20} substitution
+   * fixes that for path segments.
    */
   private static String encode(String segment) {
     return URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20");

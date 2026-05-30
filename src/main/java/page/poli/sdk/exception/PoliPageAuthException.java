@@ -4,8 +4,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Authentication / authorization failure. Covers HTTP {@code 401} (unauthorized — missing or
- * invalid API key) and HTTP {@code 403} (forbidden — key valid but rejected, e.g.
- * {@code ORGANIZATION_CANCELLED} or {@code ORGANIZATION_PURGED}).
+ * invalid API key) and HTTP {@code 403} (forbidden — key valid but rejected, e.g. {@code
+ * ORGANIZATION_CANCELLED} or {@code ORGANIZATION_PURGED}).
  */
 public final class PoliPageAuthException extends PoliPageException {
 

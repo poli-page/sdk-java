@@ -57,8 +57,7 @@ class ErrorParsingTest {
     @Test
     void status_401_maps_to_auth_exception() {
       PoliPageException ex =
-          ErrorParsing.toException(
-              401, json("INVALID_API_KEY", "no good"), null, null, MAPPER);
+          ErrorParsing.toException(401, json("INVALID_API_KEY", "no good"), null, null, MAPPER);
       assertThat(ex).isInstanceOf(PoliPageAuthException.class);
       assertThat(ex.code()).isEqualTo("INVALID_API_KEY");
     }
@@ -75,8 +74,7 @@ class ErrorParsingTest {
     @Test
     void status_402_maps_to_payment_required_exception() {
       PoliPageException ex =
-          ErrorParsing.toException(
-              402, json("PAYMENT_REQUIRED", "pay up"), null, null, MAPPER);
+          ErrorParsing.toException(402, json("PAYMENT_REQUIRED", "pay up"), null, null, MAPPER);
       assertThat(ex).isInstanceOf(PoliPagePaymentRequiredException.class);
       assertThat(ex.code()).isEqualTo("PAYMENT_REQUIRED");
     }
@@ -84,8 +82,7 @@ class ErrorParsingTest {
     @Test
     void status_404_maps_to_not_found_exception_preserving_document_not_found_code() {
       PoliPageException ex =
-          ErrorParsing.toException(
-              404, json("DOCUMENT_NOT_FOUND", "missing"), null, null, MAPPER);
+          ErrorParsing.toException(404, json("DOCUMENT_NOT_FOUND", "missing"), null, null, MAPPER);
       assertThat(ex).isInstanceOf(PoliPageNotFoundException.class);
       assertThat(ex.code()).isEqualTo("DOCUMENT_NOT_FOUND");
     }
@@ -101,18 +98,15 @@ class ErrorParsingTest {
     @Test
     void status_429_maps_to_rate_limit_exception_with_retry_after() {
       PoliPageException ex =
-          ErrorParsing.toException(
-              429, json("QUOTA_EXCEEDED", "slow down"), null, "60", MAPPER);
+          ErrorParsing.toException(429, json("QUOTA_EXCEEDED", "slow down"), null, "60", MAPPER);
       assertThat(ex).isInstanceOf(PoliPageRateLimitException.class);
-      assertThat(((PoliPageRateLimitException) ex).retryAfter())
-          .isEqualTo(Duration.ofSeconds(60));
+      assertThat(((PoliPageRateLimitException) ex).retryAfter()).isEqualTo(Duration.ofSeconds(60));
     }
 
     @Test
     void status_429_with_no_retry_after_header_yields_null() {
       PoliPageException ex =
-          ErrorParsing.toException(
-              429, json("OVERAGE_CAP_EXCEEDED", "cap"), null, null, MAPPER);
+          ErrorParsing.toException(429, json("OVERAGE_CAP_EXCEEDED", "cap"), null, null, MAPPER);
       assertThat(((PoliPageRateLimitException) ex).retryAfter()).isNull();
     }
 
@@ -243,7 +237,10 @@ class ErrorParsingTest {
 
     @Test
     void http_date_in_the_past_collapses_to_zero() {
-      String header = "Wed, 21 Oct 2000 07:28:00 GMT";
+      // RFC 1123 requires the day-of-week to actually match the date — Oct 21 2000 was a Sat.
+      // JDK's RFC_1123_DATE_TIME parser validates this; a mismatch fails to parse and returns
+      // null, which would defeat the purpose of this test.
+      String header = "Sat, 21 Oct 2000 07:28:00 GMT";
       assertThat(ErrorParsing.parseRetryAfter(header)).isEqualTo(Duration.ZERO);
     }
   }
@@ -254,8 +251,7 @@ class ErrorParsingTest {
     @Test
     void request_id_is_extracted_from_argument() {
       PoliPageException ex =
-          ErrorParsing.toException(
-              404, json("NOT_FOUND", "x"), "req_test_42", null, MAPPER);
+          ErrorParsing.toException(404, json("NOT_FOUND", "x"), "req_test_42", null, MAPPER);
       assertThat(ex.requestId()).isEqualTo("req_test_42");
     }
 

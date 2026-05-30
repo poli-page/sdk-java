@@ -47,42 +47,30 @@ class ThumbnailOptionsTest {
   @Test
   void quality_accepted_when_format_is_JPEG() {
     ThumbnailOptions o =
-        ThumbnailOptions.builder()
-            .width(320)
-            .format(ThumbnailFormat.JPEG)
-            .quality(80)
-            .build();
+        ThumbnailOptions.builder().width(320).format(ThumbnailFormat.JPEG).quality(80).build();
     assertThat(o.quality()).isEqualTo(80);
   }
 
   @Test
   void quality_rejected_outside_1_to_100() {
-    assertThatThrownBy(
-            () -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 0, null))
+    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 0, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("100");
-    assertThatThrownBy(
-            () -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 101, null))
+    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 101, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("100");
   }
 
   @Test
   void pages_rejected_when_any_value_is_below_1() {
-    assertThatThrownBy(
-            () ->
-                ThumbnailOptions.builder()
-                    .width(320)
-                    .pages(List.of(1, 0, 3))
-                    .build())
+    assertThatThrownBy(() -> ThumbnailOptions.builder().width(320).pages(List.of(1, 0, 3)).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("1-based");
   }
 
   @Test
   void pages_accepts_valid_list() {
-    ThumbnailOptions o =
-        ThumbnailOptions.builder().width(320).pages(List.of(1, 2, 3)).build();
+    ThumbnailOptions o = ThumbnailOptions.builder().width(320).pages(List.of(1, 2, 3)).build();
     assertThat(o.pages()).containsExactly(1, 2, 3);
   }
 

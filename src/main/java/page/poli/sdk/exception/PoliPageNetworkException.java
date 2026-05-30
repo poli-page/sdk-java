@@ -4,8 +4,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Transport-level failure: DNS resolution, connection refused, TLS handshake, mid-stream socket
- * error, per-request timeout. No HTTP status is available; {@link #statusCode()} returns
- * {@code 0}.
+ * error, per-request timeout. No HTTP status is available; {@link #statusCode()} returns {@code 0}.
  *
  * <p>The {@link #code()} value is either {@code "network_error"} (general transport failure) or
  * {@code "timeout"} (the per-request deadline elapsed). Both are retryable.

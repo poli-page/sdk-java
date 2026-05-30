@@ -18,11 +18,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import javax.net.ssl.SSLSession;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import page.poli.sdk.PoliPageErrorCode;
+import page.poli.sdk.RetryEvent;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageNetworkException;
 
@@ -96,10 +99,7 @@ class RetryLoopTest {
     @Test
     void returns_last_5xx_when_retries_exhausted() {
       FakeCall call =
-          new FakeCall()
-              .response(500, Map.of())
-              .response(500, Map.of())
-              .response(500, Map.of());
+          new FakeCall().response(500, Map.of()).response(500, Map.of()).response(500, Map.of());
 
       HttpResponse<byte[]> resp = newLoop(2).execute(call, "POST /x");
 
@@ -145,9 +145,7 @@ class RetryLoopTest {
     @Test
     void honors_retry_after_seconds_below_cap() {
       FakeCall call =
-          new FakeCall()
-              .response(429, Map.of("retry-after", "5"))
-              .response(200, Map.of());
+          new FakeCall().response(429, Map.of("retry-after", "5")).response(200, Map.of());
 
       newLoop(2).execute(call, "POST /x");
 
@@ -157,9 +155,7 @@ class RetryLoopTest {
     @Test
     void caps_retry_after_at_30_seconds() {
       FakeCall call =
-          new FakeCall()
-              .response(429, Map.of("retry-after", "120"))
-              .response(200, Map.of());
+          new FakeCall().response(429, Map.of("retry-after", "120")).response(200, Map.of());
 
       newLoop(2).execute(call, "POST /x");
 
@@ -169,9 +165,7 @@ class RetryLoopTest {
     @Test
     void zero_seconds_retry_after_yields_zero_sleep() {
       FakeCall call =
-          new FakeCall()
-              .response(429, Map.of("retry-after", "0"))
-              .response(200, Map.of());
+          new FakeCall().response(429, Map.of("retry-after", "0")).response(200, Map.of());
 
       newLoop(2).execute(call, "POST /x");
 
@@ -191,9 +185,7 @@ class RetryLoopTest {
     @Test
     void unparseable_retry_after_falls_back_to_exponential_backoff() {
       FakeCall call =
-          new FakeCall()
-              .response(429, Map.of("retry-after", "soon"))
-              .response(200, Map.of());
+          new FakeCall().response(429, Map.of("retry-after", "soon")).response(200, Map.of());
 
       newLoop(2).execute(call, "POST /x");
 
@@ -208,8 +200,7 @@ class RetryLoopTest {
 
     @Test
     void retries_on_IOException_then_succeeds() {
-      FakeCall call =
-          new FakeCall().ioException(new IOException("reset")).response(200, Map.of());
+      FakeCall call = new FakeCall().ioException(new IOException("reset")).response(200, Map.of());
 
       HttpResponse<byte[]> resp = newLoop(2).execute(call, "POST /x");
 
@@ -221,9 +212,7 @@ class RetryLoopTest {
     @Test
     void retries_on_HttpTimeoutException_then_succeeds() {
       FakeCall call =
-          new FakeCall()
-              .ioException(new HttpTimeoutException("slow"))
-              .response(200, Map.of());
+          new FakeCall().ioException(new HttpTimeoutException("slow")).response(200, Map.of());
 
       HttpResponse<byte[]> resp = newLoop(2).execute(call, "POST /x");
 
@@ -278,9 +267,7 @@ class RetryLoopTest {
       assertThatThrownBy(() -> newLoop(5).execute(call, "POST /x"))
           .isInstanceOf(PoliPageException.class)
           .satisfies(
-              t ->
-                  assertThat(((PoliPageException) t).code())
-                      .isEqualTo(PoliPageErrorCode.ABORTED));
+              t -> assertThat(((PoliPageException) t).code()).isEqualTo(PoliPageErrorCode.ABORTED));
       assertThat(call.callCount).isEqualTo(1);
       assertThat(Thread.interrupted()).isTrue(); // clears the flag for subsequent tests
     }
@@ -293,9 +280,7 @@ class RetryLoopTest {
       assertThatThrownBy(() -> newLoop(2).execute(call, "POST /x"))
           .isInstanceOf(PoliPageException.class)
           .satisfies(
-              t ->
-                  assertThat(((PoliPageException) t).code())
-                      .isEqualTo(PoliPageErrorCode.ABORTED));
+              t -> assertThat(((PoliPageException) t).code()).isEqualTo(PoliPageErrorCode.ABORTED));
       assertThat(Thread.interrupted()).isTrue();
     }
   }
@@ -326,8 +311,7 @@ class RetryLoopTest {
 
   @Test
   void constructor_rejects_negative_maxRetries() {
-    assertThatThrownBy(
-            () -> new RetryLoop(-1, BASE_DELAY, deterministicBackoff, sleeper))
+    assertThatThrownBy(() -> new RetryLoop(-1, BASE_DELAY, deterministicBackoff, sleeper))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -338,16 +322,14 @@ class RetryLoopTest {
 
     private RetryLoop loopWith(
         int maxRetries,
-        @org.jspecify.annotations.Nullable java.util.function.Consumer<page.poli.sdk.RetryEvent>
-            onRetry,
-        @org.jspecify.annotations.Nullable java.util.function.Consumer<Throwable> onError) {
-      return new RetryLoop(
-          maxRetries, BASE_DELAY, deterministicBackoff, sleeper, onRetry, onError);
+        @Nullable Consumer<RetryEvent> onRetry,
+        @Nullable Consumer<Throwable> onError) {
+      return new RetryLoop(maxRetries, BASE_DELAY, deterministicBackoff, sleeper, onRetry, onError);
     }
 
     @Test
     void onRetry_fires_once_per_5xx_retry_with_5xx_reason() {
-      List<page.poli.sdk.RetryEvent> events = new ArrayList<>();
+      List<RetryEvent> events = new ArrayList<>();
       FakeCall call = new FakeCall().response(500, Map.of()).response(200, Map.of());
 
       loopWith(2, events::add, null).execute(call, "POST /x");
@@ -361,7 +343,7 @@ class RetryLoopTest {
 
     @Test
     void onRetry_uses_rate_limit_reason_for_429() {
-      List<page.poli.sdk.RetryEvent> events = new ArrayList<>();
+      List<RetryEvent> events = new ArrayList<>();
       FakeCall call = new FakeCall().response(429, Map.of()).response(200, Map.of());
 
       loopWith(2, events::add, null).execute(call, "POST /x");
@@ -372,9 +354,8 @@ class RetryLoopTest {
 
     @Test
     void onRetry_sets_null_statusCode_for_IOException_with_network_error_reason() {
-      List<page.poli.sdk.RetryEvent> events = new ArrayList<>();
-      FakeCall call =
-          new FakeCall().ioException(new IOException("reset")).response(200, Map.of());
+      List<RetryEvent> events = new ArrayList<>();
+      FakeCall call = new FakeCall().ioException(new IOException("reset")).response(200, Map.of());
 
       loopWith(2, events::add, null).execute(call, "POST /x");
 
@@ -384,11 +365,9 @@ class RetryLoopTest {
 
     @Test
     void onRetry_sets_timeout_reason_for_HttpTimeoutException() {
-      List<page.poli.sdk.RetryEvent> events = new ArrayList<>();
+      List<RetryEvent> events = new ArrayList<>();
       FakeCall call =
-          new FakeCall()
-              .ioException(new HttpTimeoutException("slow"))
-              .response(200, Map.of());
+          new FakeCall().ioException(new HttpTimeoutException("slow")).response(200, Map.of());
 
       loopWith(2, events::add, null).execute(call, "POST /x");
 
@@ -400,9 +379,7 @@ class RetryLoopTest {
     void onError_fires_when_IOException_retries_exhausted() {
       List<Throwable> errors = new ArrayList<>();
       FakeCall call =
-          new FakeCall()
-              .ioException(new IOException("a"))
-              .ioException(new IOException("b"));
+          new FakeCall().ioException(new IOException("a")).ioException(new IOException("b"));
 
       assertThatThrownBy(() -> loopWith(1, null, errors::add).execute(call, "POST /x"))
           .isInstanceOf(PoliPageNetworkException.class);
@@ -419,9 +396,7 @@ class RetryLoopTest {
       assertThatThrownBy(() -> loopWith(2, null, errors::add).execute(call, "POST /x"))
           .isInstanceOf(PoliPageException.class)
           .satisfies(
-              t ->
-                  assertThat(((PoliPageException) t).code())
-                      .isEqualTo(PoliPageErrorCode.ABORTED));
+              t -> assertThat(((PoliPageException) t).code()).isEqualTo(PoliPageErrorCode.ABORTED));
 
       assertThat(errors).isEmpty(); // ← key invariant
       assertThat(Thread.interrupted()).isTrue();
@@ -497,7 +472,8 @@ class RetryLoopTest {
       callCount++;
       Object next = queue.poll();
       if (next == null) {
-        throw new AssertionError("FakeCall ran out of pre-loaded responses on attempt " + callCount);
+        throw new AssertionError(
+            "FakeCall ran out of pre-loaded responses on attempt " + callCount);
       }
       if (next instanceof HttpResponse<?> r) {
         @SuppressWarnings("unchecked")

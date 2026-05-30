@@ -23,14 +23,14 @@ import page.poli.sdk.model.PreviewResult;
 /**
  * Asynchronous counterpart of {@link Render}. Obtain via {@link PoliPageClient#renderAsync()}.
  *
- * <p>Same methods, same wire contract, same retry policy as {@link Render} — only the return
- * type changes ({@code T} → {@code CompletableFuture<T>}). Exceptions inside the chain are
- * wrapped in {@link CompletionException} by the JDK; unwrap with {@code ex.getCause()} or use
- * {@code .handle((res, err) -> { … })}.
+ * <p>Same methods, same wire contract, same retry policy as {@link Render} — only the return type
+ * changes ({@code T} → {@code CompletableFuture<T>}). Exceptions inside the chain are wrapped in
+ * {@link CompletionException} by the JDK; unwrap with {@code ex.getCause()} or use {@code
+ * .handle((res, err) -> { … })}.
  *
- * <p>Internally uses {@code HttpClient.sendAsync(...)} so no worker thread is blocked while
- * waiting on the network. The async retry loop uses {@link CompletableFuture#delayedExecutor} for
- * back-off; no thread sleeps between attempts.
+ * <p>Internally uses {@code HttpClient.sendAsync(...)} so no worker thread is blocked while waiting
+ * on the network. The async retry loop uses {@link CompletableFuture#delayedExecutor} for back-off;
+ * no thread sleeps between attempts.
  *
  * <p>Cancelling the returned future via {@code cancel(true)} marks the future cancelled per JDK
  * semantics; the in-flight HTTP exchange is best-effort aborted (see plan §7.2).
@@ -75,8 +75,8 @@ public final class RenderAsync {
   }
 
   /**
-   * Async variant of {@link Render#pdfStream(ProjectModeInput)} — returns an {@link InputStream}
-   * as a future. Same close-the-stream contract: wrap in {@code try-with-resources} or leak a
+   * Async variant of {@link Render#pdfStream(ProjectModeInput)} — returns an {@link InputStream} as
+   * a future. Same close-the-stream contract: wrap in {@code try-with-resources} or leak a
    * connection slot.
    *
    * @param input the render input — non-null

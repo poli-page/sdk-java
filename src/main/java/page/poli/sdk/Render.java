@@ -27,8 +27,8 @@ import page.poli.sdk.model.PreviewResult;
  *
  * <ul>
  *   <li>{@link #pdf(ProjectModeInput)} — render and return bytes (two HTTP hops)
- *   <li>{@link #pdfStream(ProjectModeInput)} — same but return an {@link InputStream} so large
- *       PDFs don't have to fit in memory; <strong>caller must close the stream</strong>
+ *   <li>{@link #pdfStream(ProjectModeInput)} — same but return an {@link InputStream} so large PDFs
+ *       don't have to fit in memory; <strong>caller must close the stream</strong>
  *   <li>{@link #preview(RenderInput)} — render an HTML preview without storing a document
  *   <li>{@link #document(ProjectModeInput)} — render, store, return the descriptor (skip download)
  * </ul>
@@ -66,7 +66,8 @@ public final class Render {
   public byte[] pdf(ProjectModeInput input) {
     DocumentDescriptor descriptor = document(input);
     HttpResponse<byte[]> response =
-        sendOnce(() -> transport.getPresigned(URI.create(descriptor.presignedPdfUrl())),
+        sendOnce(
+            () -> transport.getPresigned(URI.create(descriptor.presignedPdfUrl())),
             "GET presignedPdfUrl");
     if (!isSuccess(response.statusCode())) {
       throw new PoliPageDownloadException(
@@ -82,9 +83,9 @@ public final class Render {
    * Render the given input as a PDF and return a streaming body. Use this for large documents
    * (multi-MB) to avoid buffering the full byte array in memory.
    *
-   * <p><strong>The returned {@link InputStream} owns the underlying HTTP connection.</strong>
-   * Wrap the call in {@code try-with-resources} (or call {@code close()} explicitly) — leaking
-   * the stream leaks a slot from the JDK's HTTP/2 connection pool.
+   * <p><strong>The returned {@link InputStream} owns the underlying HTTP connection.</strong> Wrap
+   * the call in {@code try-with-resources} (or call {@code close()} explicitly) — leaking the
+   * stream leaks a slot from the JDK's HTTP/2 connection pool.
    *
    * <pre>{@code
    * try (InputStream pdf = client.render().pdfStream(input)) {
@@ -119,9 +120,9 @@ public final class Render {
   }
 
   /**
-   * Render the given input and return the stored document's descriptor without downloading the
-   * PDF. Useful when the caller wants to persist {@code documentId} and download on demand later
-   * (e.g. via a signed URL handed out from another service).
+   * Render the given input and return the stored document's descriptor without downloading the PDF.
+   * Useful when the caller wants to persist {@code documentId} and download on demand later (e.g.
+   * via a signed URL handed out from another service).
    *
    * @param input the render input — non-null
    * @return the descriptor
@@ -134,8 +135,8 @@ public final class Render {
   /**
    * Render the given input as an HTML preview without producing a stored document.
    *
-   * <p>Accepts either {@link ProjectModeInput} or
-   * {@link page.poli.sdk.input.InlineModeInput} via the sealed {@link RenderInput} supertype.
+   * <p>Accepts either {@link ProjectModeInput} or {@link page.poli.sdk.input.InlineModeInput} via
+   * the sealed {@link RenderInput} supertype.
    *
    * @param input the render input — non-null
    * @return the parsed preview result

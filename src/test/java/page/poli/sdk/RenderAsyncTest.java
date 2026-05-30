@@ -171,11 +171,9 @@ class RenderAsyncTest {
                     .withStatus(200)
                     .withHeader("Content-Type", "application/json")
                     .withBody(
-                        String.format(
-                            FULL_DESCRIPTOR_JSON_TEMPLATE, "https://s3.example/x.pdf"))));
+                        String.format(FULL_DESCRIPTOR_JSON_TEMPLATE, "https://s3.example/x.pdf"))));
 
-    DocumentDescriptor d =
-        newClientWithRetries(wm).renderAsync().document(simpleInput()).join();
+    DocumentDescriptor d = newClientWithRetries(wm).renderAsync().document(simpleInput()).join();
 
     assertThat(d.documentId()).isEqualTo("doc_async");
   }

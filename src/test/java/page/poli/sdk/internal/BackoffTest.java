@@ -20,26 +20,22 @@ class BackoffTest {
 
     @Test
     void attempt_0_with_jitter_1_returns_baseDelay() {
-      assertThat(fixed(1.0).compute(0, Duration.ofMillis(500)))
-          .isEqualTo(Duration.ofMillis(500));
+      assertThat(fixed(1.0).compute(0, Duration.ofMillis(500))).isEqualTo(Duration.ofMillis(500));
     }
 
     @Test
     void attempt_1_with_jitter_1_doubles_baseDelay() {
-      assertThat(fixed(1.0).compute(1, Duration.ofMillis(500)))
-          .isEqualTo(Duration.ofMillis(1000));
+      assertThat(fixed(1.0).compute(1, Duration.ofMillis(500))).isEqualTo(Duration.ofMillis(1000));
     }
 
     @Test
     void attempt_2_with_jitter_1_quadruples_baseDelay() {
-      assertThat(fixed(1.0).compute(2, Duration.ofMillis(500)))
-          .isEqualTo(Duration.ofMillis(2000));
+      assertThat(fixed(1.0).compute(2, Duration.ofMillis(500))).isEqualTo(Duration.ofMillis(2000));
     }
 
     @Test
     void attempt_3_with_jitter_1_octuples_baseDelay() {
-      assertThat(fixed(1.0).compute(3, Duration.ofMillis(500)))
-          .isEqualTo(Duration.ofMillis(4000));
+      assertThat(fixed(1.0).compute(3, Duration.ofMillis(500))).isEqualTo(Duration.ofMillis(4000));
     }
   }
 
@@ -48,14 +44,12 @@ class BackoffTest {
 
     @Test
     void jitter_min_halves_exponential() {
-      assertThat(fixed(0.5).compute(0, Duration.ofMillis(500)))
-          .isEqualTo(Duration.ofMillis(250));
+      assertThat(fixed(0.5).compute(0, Duration.ofMillis(500))).isEqualTo(Duration.ofMillis(250));
     }
 
     @Test
     void jitter_max_one_and_a_half_scales_exponential() {
-      assertThat(fixed(1.49).compute(0, Duration.ofMillis(500)))
-          .isEqualTo(Duration.ofMillis(745));
+      assertThat(fixed(1.49).compute(0, Duration.ofMillis(500))).isEqualTo(Duration.ofMillis(745));
     }
 
     @Test

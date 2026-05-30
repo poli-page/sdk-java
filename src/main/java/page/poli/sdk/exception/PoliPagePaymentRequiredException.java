@@ -3,8 +3,8 @@ package page.poli.sdk.exception;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The organization has unpaid invoices and rendering is suspended. HTTP {@code 402}, code
- * {@code PAYMENT_REQUIRED}. Resolve in the billing portal — there is nothing the SDK can do.
+ * The organization has unpaid invoices and rendering is suspended. HTTP {@code 402}, code {@code
+ * PAYMENT_REQUIRED}. Resolve in the billing portal — there is nothing the SDK can do.
  */
 public final class PoliPagePaymentRequiredException extends PoliPageException {
 

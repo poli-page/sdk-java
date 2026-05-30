@@ -2,8 +2,8 @@ package page.poli.sdk;
 
 /**
  * String constants for every error {@code code} the Poli Page API may return, plus the SDK's own
- * transport / lifecycle codes. Use them for fine-grained branching when the
- * {@link page.poli.sdk.exception.PoliPageException} subclass alone isn't precise enough:
+ * transport / lifecycle codes. Use them for fine-grained branching when the {@link
+ * page.poli.sdk.exception.PoliPageException} subclass alone isn't precise enough:
  *
  * <pre>{@code
  * switch (ex.code()) {
@@ -14,10 +14,10 @@ package page.poli.sdk;
  * }</pre>
  *
  * <p>The constant <strong>values</strong> are kept verbatim with the wire / Node SDK forms — that's
- * why API codes are {@code SCREAMING_SNAKE_CASE} but the SDK-internal codes are lowercase
- * ({@code "network_error"}, not {@code "NETWORK_ERROR"}). Constant <strong>names</strong> follow
- * Java's idiomatic uppercase. Comparing {@code ex.code()} against these constants therefore matches
- * by value, not by name.
+ * why API codes are {@code SCREAMING_SNAKE_CASE} but the SDK-internal codes are lowercase ({@code
+ * "network_error"}, not {@code "NETWORK_ERROR"}). Constant <strong>names</strong> follow Java's
+ * idiomatic uppercase. Comparing {@code ex.code()} against these constants therefore matches by
+ * value, not by name.
  */
 public final class PoliPageErrorCode {
 

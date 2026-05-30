@@ -28,7 +28,8 @@ import page.poli.sdk.input.ProjectModeInput;
 class PoliPageClientFileTest {
 
   private static final String TEST_KEY = "pp_test_secret";
-  private static final byte[] PDF_BYTES = "%PDF-1.4\nfile pdf body".getBytes(StandardCharsets.UTF_8);
+  private static final byte[] PDF_BYTES =
+      "%PDF-1.4\nfile pdf body".getBytes(StandardCharsets.UTF_8);
   private static final String PRESIGNED_PATH = "/presigned/file.pdf";
 
   private static final String FULL_DESCRIPTOR_JSON_TEMPLATE =
@@ -114,8 +115,7 @@ class PoliPageClientFileTest {
                     .withHeader("Content-Type", "application/json")
                     .withBody("{\"code\":\"VERSION_NOT_FOUND\",\"message\":\"x\"}")));
 
-    assertThatThrownBy(
-            () -> newClient(wm).renderToFile(simpleInput(), tmp.resolve("nope.pdf")))
+    assertThatThrownBy(() -> newClient(wm).renderToFile(simpleInput(), tmp.resolve("nope.pdf")))
         .isInstanceOf(PoliPageNotFoundException.class);
   }
 
@@ -160,10 +160,7 @@ class PoliPageClientFileTest {
                     .withBody("{\"code\":\"VERSION_NOT_FOUND\",\"message\":\"x\"}")));
 
     assertThatThrownBy(
-            () ->
-                newClient(wm)
-                    .renderToFileAsync(simpleInput(), tmp.resolve("x.pdf"))
-                    .join())
+            () -> newClient(wm).renderToFileAsync(simpleInput(), tmp.resolve("x.pdf")).join())
         .isInstanceOf(CompletionException.class)
         .hasCauseInstanceOf(PoliPageNotFoundException.class);
   }

@@ -10,14 +10,14 @@ import org.jspecify.annotations.Nullable;
 /**
  * Options for {@code client.documents().thumbnails(id, options)}. Construct via {@link #builder()}.
  *
- * <p>Wire-shape envelope: the SDK wraps this object under a {@code "thumbnails"} key when sending
- * — consumers don't see that detail.
+ * <p>Wire-shape envelope: the SDK wraps this object under a {@code "thumbnails"} key when sending —
+ * consumers don't see that detail.
  *
  * @param width thumbnail width in pixels; required, must be positive
  * @param format output format; required (no implicit default in the wire envelope — the deployed
  *     API requires it explicitly, even though Node defaults to PNG client-side)
- * @param quality JPEG quality 1–100; ignored / forbidden when {@link #format} is
- *     {@link ThumbnailFormat#PNG}
+ * @param quality JPEG quality 1–100; ignored / forbidden when {@link #format} is {@link
+ *     ThumbnailFormat#PNG}
  * @param pages 1-based page numbers to render; {@code null} renders all pages
  */
 @JsonInclude(Include.NON_NULL)
@@ -46,8 +46,7 @@ public record ThumbnailOptions(
       pages = List.copyOf(pages); // defensive copy
       for (int p : pages) {
         if (p < 1) {
-          throw new IllegalArgumentException(
-              "pages must be 1-based positive integers, got: " + p);
+          throw new IllegalArgumentException("pages must be 1-based positive integers, got: " + p);
         }
       }
     }

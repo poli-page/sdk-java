@@ -74,8 +74,7 @@ class PoliPageClientTest {
 
     @Test
     void retryDelay_throws_when_zero() {
-      assertThatThrownBy(
-              () -> PoliPageClient.builder().apiKey(TEST_KEY).retryDelay(Duration.ZERO))
+      assertThatThrownBy(() -> PoliPageClient.builder().apiKey(TEST_KEY).retryDelay(Duration.ZERO))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("retryDelay");
     }
@@ -100,9 +99,7 @@ class PoliPageClientTest {
     void requestTimeout_throws_when_negative() {
       assertThatThrownBy(
               () ->
-                  PoliPageClient.builder()
-                      .apiKey(TEST_KEY)
-                      .requestTimeout(Duration.ofSeconds(-1)))
+                  PoliPageClient.builder().apiKey(TEST_KEY).requestTimeout(Duration.ofSeconds(-1)))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("requestTimeout");
     }
@@ -195,16 +192,14 @@ class PoliPageClientTest {
     @Test
     void onRetry_is_preserved() {
       java.util.function.Consumer<page.poli.sdk.RetryEvent> hook = e -> {};
-      PoliPageClient client =
-          PoliPageClient.builder().apiKey(TEST_KEY).onRetry(hook).build();
+      PoliPageClient client = PoliPageClient.builder().apiKey(TEST_KEY).onRetry(hook).build();
       assertThat(client.options().onRetry()).isSameAs(hook);
     }
 
     @Test
     void onError_is_preserved() {
       java.util.function.Consumer<Throwable> hook = err -> {};
-      PoliPageClient client =
-          PoliPageClient.builder().apiKey(TEST_KEY).onError(hook).build();
+      PoliPageClient client = PoliPageClient.builder().apiKey(TEST_KEY).onError(hook).build();
       assertThat(client.options().onError()).isSameAs(hook);
     }
 
@@ -212,11 +207,7 @@ class PoliPageClientTest {
     void onRetry_null_clears_an_existing_hook() {
       java.util.function.Consumer<page.poli.sdk.RetryEvent> hook = e -> {};
       PoliPageClient client =
-          PoliPageClient.builder()
-              .apiKey(TEST_KEY)
-              .onRetry(hook)
-              .onRetry(null)
-              .build();
+          PoliPageClient.builder().apiKey(TEST_KEY).onRetry(hook).onRetry(null).build();
       assertThat(client.options().onRetry()).isNull();
     }
   }

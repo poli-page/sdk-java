@@ -19,13 +19,13 @@ import page.poli.sdk.exception.PoliPageRateLimitException;
 import page.poli.sdk.exception.PoliPageValidationException;
 
 /**
- * Pure function: map an HTTP error response (status + body + selected headers) to a
- * {@link PoliPageException} subclass. No I/O, no global state — entirely testable from a unit
- * test with byte arrays.
+ * Pure function: map an HTTP error response (status + body + selected headers) to a {@link
+ * PoliPageException} subclass. No I/O, no global state — entirely testable from a unit test with
+ * byte arrays.
  *
- * <p>Body parsing is lenient: an empty body, a non-JSON body, or a JSON object missing
- * {@code code} / {@code message} all degrade gracefully to status-derived defaults rather than
- * masking the original failure with a parse exception.
+ * <p>Body parsing is lenient: an empty body, a non-JSON body, or a JSON object missing {@code code}
+ * / {@code message} all degrade gracefully to status-derived defaults rather than masking the
+ * original failure with a parse exception.
  */
 public final class ErrorParsing {
 
@@ -50,8 +50,7 @@ public final class ErrorParsing {
       ObjectMapper mapper) {
     Parsed parsed = parseBody(body, mapper);
     String code = parsed.code != null ? parsed.code : defaultCodeForStatus(statusCode);
-    String message =
-        parsed.message != null ? parsed.message : ("HTTP " + statusCode);
+    String message = parsed.message != null ? parsed.message : ("HTTP " + statusCode);
 
     return switch (statusCode) {
       case 400, 422 -> new PoliPageValidationException(code, statusCode, message, requestId);
@@ -59,8 +58,9 @@ public final class ErrorParsing {
       case 402 -> new PoliPagePaymentRequiredException(code, statusCode, message, requestId);
       case 404 -> new PoliPageNotFoundException(code, statusCode, message, requestId);
       case 410 -> new PoliPageGoneException(code, statusCode, message, requestId);
-      case 429 -> new PoliPageRateLimitException(
-          code, statusCode, message, requestId, parseRetryAfter(retryAfterHeader));
+      case 429 ->
+          new PoliPageRateLimitException(
+              code, statusCode, message, requestId, parseRetryAfter(retryAfterHeader));
       default -> new PoliPageException(code, statusCode, message, requestId, null);
     };
   }
@@ -71,8 +71,8 @@ public final class ErrorParsing {
    *
    * <p>Returns {@code null} when the header is absent, blank, or unparseable. Past HTTP-dates
    * collapse to {@link Duration#ZERO}. The retry loop is responsible for capping the result (the
-   * SDK uses a 30-second cap); this method returns the raw parsed value so the exception's
-   * {@code retryAfter()} accessor sees what the server said.
+   * SDK uses a 30-second cap); this method returns the raw parsed value so the exception's {@code
+   * retryAfter()} accessor sees what the server said.
    *
    * @param headerValue raw header value, or {@code null}
    * @return the parsed duration, or {@code null} if unparseable / absent

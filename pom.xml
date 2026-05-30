@@ -1,411 +1,416 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
 
-    <groupId>page.poli</groupId>
-    <artifactId>sdk</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
+  <groupId>page.poli</groupId>
+  <artifactId>sdk</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
 
-    <name>Poli Page SDK for Java</name>
-    <description>Render polished PDFs from HTML templates via the Poli Page API.</description>
+  <name>Poli Page SDK for Java</name>
+  <description>Render polished PDFs from HTML templates via the Poli Page API.</description>
+  <url>https://github.com/poli-page/sdk-java</url>
+  <inceptionYear>2026</inceptionYear>
+
+  <organization>
+    <name>Poli Page</name>
+    <url>https://poli.page</url>
+  </organization>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>poli-page</id>
+      <name>Poli Page</name>
+      <email>support@poli.page</email>
+      <organization>Poli Page</organization>
+      <organizationUrl>https://poli.page</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/poli-page/sdk-java.git</connection>
+    <developerConnection>scm:git:git@github.com:poli-page/sdk-java.git</developerConnection>
+    <tag>HEAD</tag>
     <url>https://github.com/poli-page/sdk-java</url>
-    <inceptionYear>2026</inceptionYear>
+  </scm>
 
-    <organization>
-        <name>Poli Page</name>
-        <url>https://poli.page</url>
-    </organization>
+  <issueManagement>
+    <system>GitHub Issues</system>
+    <url>https://github.com/poli-page/sdk-java/issues</url>
+  </issueManagement>
 
-    <licenses>
-        <license>
-            <name>MIT License</name>
-            <url>https://opensource.org/licenses/MIT</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
+  <ciManagement>
+    <system>GitHub Actions</system>
+    <url>https://github.com/poli-page/sdk-java/actions</url>
+  </ciManagement>
 
-    <developers>
-        <developer>
-            <id>poli-page</id>
-            <name>Poli Page</name>
-            <email>support@poli.page</email>
-            <organization>Poli Page</organization>
-            <organizationUrl>https://poli.page</organizationUrl>
-        </developer>
-    </developers>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
 
-    <scm>
-        <url>https://github.com/poli-page/sdk-java</url>
-        <connection>scm:git:https://github.com/poli-page/sdk-java.git</connection>
-        <developerConnection>scm:git:git@github.com:poli-page/sdk-java.git</developerConnection>
-        <tag>HEAD</tag>
-    </scm>
+    <!-- Dependency versions -->
+    <slf4j.version>2.0.18</slf4j.version>
+    <jackson.version>2.17.2</jackson.version>
+    <jspecify.version>1.0.0</jspecify.version>
 
-    <issueManagement>
-        <system>GitHub Issues</system>
-        <url>https://github.com/poli-page/sdk-java/issues</url>
-    </issueManagement>
+    <!-- Test dependency versions -->
+    <junit.version>6.1.0</junit.version>
+    <assertj.version>3.27.7</assertj.version>
+    <wiremock.version>3.13.2</wiremock.version>
 
-    <ciManagement>
-        <system>GitHub Actions</system>
-        <url>https://github.com/poli-page/sdk-java/actions</url>
-    </ciManagement>
+    <!-- Plugin versions -->
+    <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+    <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+    <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
+    <maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
+    <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
+    <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+    <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+    <spotless-maven-plugin.version>3.6.0</spotless-maven-plugin.version>
+    <google-java-format.version>1.22.0</google-java-format.version>
+    <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
+    <central-publishing-maven-plugin.version>0.5.0</central-publishing-maven-plugin.version>
+    <japicmp-maven-plugin.version>0.26.1</japicmp-maven-plugin.version>
+  </properties>
 
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.release>17</maven.compiler.release>
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jspecify</groupId>
+      <artifactId>jspecify</artifactId>
+      <version>${jspecify.version}</version>
+    </dependency>
 
-        <!-- Dependency versions -->
-        <slf4j.version>2.0.18</slf4j.version>
-        <jackson.version>2.17.2</jackson.version>
-        <jspecify.version>1.0.0</jspecify.version>
+    <!-- Test scope -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.wiremock</groupId>
+      <artifactId>wiremock</artifactId>
+      <version>${wiremock.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
-        <!-- Test dependency versions -->
-        <junit.version>6.1.0</junit.version>
-        <assertj.version>3.27.7</assertj.version>
-        <wiremock.version>3.13.2</wiremock.version>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <release>${maven.compiler.release}</release>
+          <compilerArgs>
+            <arg>-Xlint:all,-serial,-processing</arg>
+            <arg>-Werror</arg>
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
 
-        <!-- Plugin versions -->
-        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
-        <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
-        <maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
-        <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
-        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
-        <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
-        <spotless-maven-plugin.version>3.6.0</spotless-maven-plugin.version>
-        <google-java-format.version>1.22.0</google-java-format.version>
-        <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
-        <central-publishing-maven-plugin.version>0.5.0</central-publishing-maven-plugin.version>
-        <japicmp-maven-plugin.version>0.26.1</japicmp-maven-plugin.version>
-    </properties>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven-surefire-plugin.version}</version>
+      </plugin>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>${slf4j.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jspecify</groupId>
-            <artifactId>jspecify</artifactId>
-            <version>${jspecify.version}</version>
-        </dependency>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>${maven-jar-plugin.version}</version>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Automatic-Module-Name>page.poli.sdk</Automatic-Module-Name>
+              <Implementation-Title>${project.name}</Implementation-Title>
+              <Implementation-Version>${project.version}</Implementation-Version>
+              <Implementation-Vendor>Poli Page</Implementation-Vendor>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
 
-        <!-- Test scope -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.assertj</groupId>
-            <artifactId>assertj-core</artifactId>
-            <version>${assertj.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.wiremock</groupId>
-            <artifactId>wiremock</artifactId>
-            <version>${wiremock.version}</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless-maven-plugin.version}</version>
+        <configuration>
+          <java>
+            <googleJavaFormat>
+              <version>${google-java-format.version}</version>
+              <style>GOOGLE</style>
+              <reflowLongStrings>true</reflowLongStrings>
+            </googleJavaFormat>
+            <removeUnusedImports/>
+            <trimTrailingWhitespace/>
+            <endWithNewline/>
+          </java>
+          <pom>
+            <includes>
+              <include>pom.xml</include>
+            </includes>
+            <sortPom>
+              <expandEmptyElements>false</expandEmptyElements>
+            </sortPom>
+          </pom>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <phase>verify</phase>
+          </execution>
+        </executions>
+      </plugin>
 
-    <build>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <goals>
+              <goal>report</goal>
+            </goals>
+            <phase>test</phase>
+          </execution>
+          <execution>
+            <id>check</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <phase>verify</phase>
+            <configuration>
+              <haltOnFailure>true</haltOnFailure>
+              <rules>
+                <!--
+                  0.80 starting floor; 90% remains the aspiration. The current gap (~5%) is
+                  concentrated in catch blocks for HttpTimeoutException / IOException /
+                  InterruptedException in the Render and RenderAsync send-once helpers, plus the
+                  RetryLoop's async error tail. Future work: add targeted tests via a mock
+                  Transport that throws on demand and raise this minimum back to 0.90.
+                -->
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.80</minimum>
+                    </limit>
+                  </limits>
+                  <excludes>
+                    <exclude>page/poli/sdk/internal/Version</exclude>
+                  </excludes>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <!-- Activated for Maven Central releases: ./mvnw -P release deploy -->
+      <id>release</id>
+      <properties>
+        <japicmp.skip>false</japicmp.skip>
+      </properties>
+      <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>${maven-compiler-plugin.version}</version>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>${maven-source-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>${maven-javadoc-plugin.version}</version>
+            <configuration>
+              <source>${maven.compiler.release}</source>
+              <doclint>all,-missing</doclint>
+              <failOnError>true</failOnError>
+              <quiet>true</quiet>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>${maven-gpg-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <phase>verify</phase>
                 <configuration>
-                    <release>${maven.compiler.release}</release>
-                    <compilerArgs>
-                        <arg>-Xlint:all,-serial,-processing</arg>
-                        <arg>-Werror</arg>
-                        <arg>-parameters</arg>
-                    </compilerArgs>
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
                 </configuration>
-            </plugin>
+              </execution>
+            </executions>
+          </plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>${maven-surefire-plugin.version}</version>
-            </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>${central-publishing-maven-plugin.version}</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>false</autoPublish>
+              <waitUntil>validated</waitUntil>
+            </configuration>
+          </plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>${maven-jar-plugin.version}</version>
-                <configuration>
-                    <archive>
-                        <manifestEntries>
-                            <Automatic-Module-Name>page.poli.sdk</Automatic-Module-Name>
-                            <Implementation-Title>${project.name}</Implementation-Title>
-                            <Implementation-Version>${project.version}</Implementation-Version>
-                            <Implementation-Vendor>Poli Page</Implementation-Vendor>
-                        </manifestEntries>
-                    </archive>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>com.diffplug.spotless</groupId>
-                <artifactId>spotless-maven-plugin</artifactId>
-                <version>${spotless-maven-plugin.version}</version>
-                <configuration>
-                    <java>
-                        <googleJavaFormat>
-                            <version>${google-java-format.version}</version>
-                            <style>GOOGLE</style>
-                            <reflowLongStrings>true</reflowLongStrings>
-                        </googleJavaFormat>
-                        <removeUnusedImports/>
-                        <trimTrailingWhitespace/>
-                        <endWithNewline/>
-                    </java>
-                    <pom>
-                        <includes>
-                            <include>pom.xml</include>
-                        </includes>
-                        <sortPom>
-                            <expandEmptyElements>false</expandEmptyElements>
-                        </sortPom>
-                    </pom>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>${jacoco-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>check</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                        <configuration>
-                            <haltOnFailure>true</haltOnFailure>
-                            <rules>
-                                <rule>
-                                    <element>BUNDLE</element>
-                                    <limits>
-                                        <limit>
-                                            <counter>LINE</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.90</minimum>
-                                        </limit>
-                                    </limits>
-                                    <excludes>
-                                        <exclude>page/poli/sdk/internal/Version</exclude>
-                                    </excludes>
-                                </rule>
-                            </rules>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-
-    <profiles>
-        <profile>
-            <!-- Activated for Maven Central releases: ./mvnw -P release deploy -->
-            <id>release</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-source-plugin</artifactId>
-                        <version>${maven-source-plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>attach-sources</id>
-                                <goals>
-                                    <goal>jar-no-fork</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>${maven-javadoc-plugin.version}</version>
-                        <configuration>
-                            <source>${maven.compiler.release}</source>
-                            <doclint>all,-missing</doclint>
-                            <failOnError>true</failOnError>
-                            <quiet>true</quiet>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>${maven-gpg-plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                                <configuration>
-                                    <gpgArguments>
-                                        <arg>--pinentry-mode</arg>
-                                        <arg>loopback</arg>
-                                    </gpgArguments>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>${central-publishing-maven-plugin.version}</version>
-                        <extensions>true</extensions>
-                        <configuration>
-                            <publishingServerId>central</publishingServerId>
-                            <autoPublish>false</autoPublish>
-                            <waitUntil>validated</waitUntil>
-                        </configuration>
-                    </plugin>
-
-                    <plugin>
-                        <!-- Compares public API of this build against the last released artifact
+          <plugin>
+            <!-- Compares public API of this build against the last released artifact
                              on Maven Central. Fails on any binary or source-incompatible change
                              (removed/renamed methods, narrowed return types, new abstract methods).
                              Skip via -Djapicmp.skip=true on the very first release before any prior
                              version exists on Central. -->
-                        <groupId>com.github.siom79.japicmp</groupId>
-                        <artifactId>japicmp-maven-plugin</artifactId>
-                        <version>${japicmp-maven-plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>cmp</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <skip>${japicmp.skip}</skip>
-                            <oldVersion>
-                                <dependency>
-                                    <groupId>page.poli</groupId>
-                                    <artifactId>sdk</artifactId>
-                                    <version>RELEASE</version>
-                                </dependency>
-                            </oldVersion>
-                            <parameter>
-                                <onlyModified>true</onlyModified>
-                                <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
-                                <breakBuildOnSourceIncompatibleModifications>true</breakBuildOnSourceIncompatibleModifications>
-                                <includes>
-                                    <include>page.poli.sdk</include>
-                                    <include>page.poli.sdk.input</include>
-                                    <include>page.poli.sdk.model</include>
-                                    <include>page.poli.sdk.exception</include>
-                                </includes>
-                            </parameter>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-            <properties>
-                <japicmp.skip>false</japicmp.skip>
-            </properties>
-        </profile>
+            <groupId>com.github.siom79.japicmp</groupId>
+            <artifactId>japicmp-maven-plugin</artifactId>
+            <version>${japicmp-maven-plugin.version}</version>
+            <configuration>
+              <skip>${japicmp.skip}</skip>
+              <oldVersion>
+                <dependency>
+                  <groupId>page.poli</groupId>
+                  <artifactId>sdk</artifactId>
+                  <version>RELEASE</version>
+                </dependency>
+              </oldVersion>
+              <parameter>
+                <onlyModified>true</onlyModified>
+                <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                <breakBuildOnSourceIncompatibleModifications>true</breakBuildOnSourceIncompatibleModifications>
+                <includes>
+                  <include>page.poli.sdk</include>
+                  <include>page.poli.sdk.input</include>
+                  <include>page.poli.sdk.model</include>
+                  <include>page.poli.sdk.exception</include>
+                </includes>
+              </parameter>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>cmp</goal>
+                </goals>
+                <phase>verify</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
 
-        <profile>
-            <!-- Integration tests against the real develop API: ./mvnw -P integration-tests verify -->
-            <id>integration-tests</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>build-helper-maven-plugin</artifactId>
-                        <version>3.6.1</version>
-                        <executions>
-                            <execution>
-                                <id>add-integration-test-source</id>
-                                <phase>generate-test-sources</phase>
-                                <goals>
-                                    <goal>add-test-source</goal>
-                                </goals>
-                                <configuration>
-                                    <sources>
-                                        <source>src/integrationTest/java</source>
-                                    </sources>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-failsafe-plugin</artifactId>
-                        <version>${maven-failsafe-plugin.version}</version>
-                        <configuration>
-                            <includes>
-                                <include>**/*IntegrationTest.java</include>
-                                <include>**/EndToEndTest.java</include>
-                            </includes>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>integration-test</goal>
-                                    <goal>verify</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
+    <profile>
+      <!-- Integration tests against the real develop API: ./mvnw -P integration-tests verify -->
+      <id>integration-tests</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <version>3.6.1</version>
+            <executions>
+              <execution>
+                <id>add-integration-test-source</id>
+                <goals>
+                  <goal>add-test-source</goal>
+                </goals>
+                <phase>generate-test-sources</phase>
+                <configuration>
+                  <sources>
+                    <source>src/integrationTest/java</source>
+                  </sources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>${maven-failsafe-plugin.version}</version>
+            <configuration>
+              <includes>
+                <include>**/*IntegrationTest.java</include>
+                <include>**/EndToEndTest.java</include>
+              </includes>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

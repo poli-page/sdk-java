@@ -23,16 +23,16 @@ public final class Backoff {
   private final DoubleSupplier jitter;
 
   /**
-   * @param jitter source of jitter values; each invocation should return a value in
-   *     {@code [0.5, 1.5)} (production) or any fixed value (tests)
+   * @param jitter source of jitter values; each invocation should return a value in {@code [0.5,
+   *     1.5)} (production) or any fixed value (tests)
    */
   public Backoff(DoubleSupplier jitter) {
     this.jitter = jitter;
   }
 
   /**
-   * Build an instance whose jitter is uniformly drawn from {@code [0.5, 1.5)} via the
-   * thread-local PRNG. Cheap to allocate; one instance per {@link RetryLoop} is plenty.
+   * Build an instance whose jitter is uniformly drawn from {@code [0.5, 1.5)} via the thread-local
+   * PRNG. Cheap to allocate; one instance per {@link RetryLoop} is plenty.
    *
    * @return a new {@code Backoff} backed by {@link ThreadLocalRandom}
    */

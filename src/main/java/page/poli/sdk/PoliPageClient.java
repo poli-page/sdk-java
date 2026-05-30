@@ -31,8 +31,8 @@ import page.poli.sdk.internal.Transport;
  * / {@code client.documents()} or the {@link java.util.concurrent.CompletableFuture}-based async
  * facade via {@code client.renderAsync()} / {@code client.documentsAsync()}.
  *
- * <p>Instances are immutable and thread-safe. One {@code PoliPageClient} owns a single
- * {@code java.net.http.HttpClient} connection pool; reuse one instance per application rather than
+ * <p>Instances are immutable and thread-safe. One {@code PoliPageClient} owns a single {@code
+ * java.net.http.HttpClient} connection pool; reuse one instance per application rather than
  * creating one per request.
  *
  * <h2>Example</h2>
@@ -87,8 +87,8 @@ public final class PoliPageClient {
   }
 
   /**
-   * Returns the blocking documents facade ({@code get}, {@code preview}, {@code thumbnails},
-   * {@code delete}). Cached for the lifetime of the client.
+   * Returns the blocking documents facade ({@code get}, {@code preview}, {@code thumbnails}, {@code
+   * delete}). Cached for the lifetime of the client.
    *
    * @return the (cached) blocking documents facade
    */
@@ -121,13 +121,13 @@ public final class PoliPageClient {
    * Render the input as a PDF and stream the bytes directly to {@code path}, overwriting any
    * existing file. Convenience over {@code render().pdfStream(input)} + manual copy.
    *
-   * <p>The underlying stream is closed before this method returns, even on failure. The PDF is
-   * not buffered in memory.
+   * <p>The underlying stream is closed before this method returns, even on failure. The PDF is not
+   * buffered in memory.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
-   * @throws PoliPageException on render failure or local file-write failure (code
-   *     {@code "io_error"})
+   * @throws PoliPageException on render failure or local file-write failure (code {@code
+   *     "io_error"})
    */
   public void renderToFile(ProjectModeInput input, Path path) {
     try (InputStream stream = render.pdfStream(input)) {
@@ -143,8 +143,8 @@ public final class PoliPageClient {
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
-   * @return a future that completes when the file has been written (or completes exceptionally
-   *     on failure, with the cause wrapped in {@code CompletionException} per JDK convention)
+   * @return a future that completes when the file has been written (or completes exceptionally on
+   *     failure, with the cause wrapped in {@code CompletionException} per JDK convention)
    */
   public CompletableFuture<Void> renderToFileAsync(ProjectModeInput input, Path path) {
     return renderAsync
@@ -202,9 +202,9 @@ public final class PoliPageClient {
     /**
      * Sets the API key used for authentication. Required.
      *
-     * <p>Test keys (prefix {@code pp_test_}) hit the develop environment; live keys (prefix
-     * {@code pp_live_}) hit production. Find your keys at
-     * <a href="https://poli.page/dashboard/keys">poli.page/dashboard/keys</a>.
+     * <p>Test keys (prefix {@code pp_test_}) hit the develop environment; live keys (prefix {@code
+     * pp_live_}) hit production. Find your keys at <a
+     * href="https://poli.page/dashboard/keys">poli.page/dashboard/keys</a>.
      *
      * @param apiKey the API key — must not be {@code null}
      * @return this builder
@@ -218,8 +218,8 @@ public final class PoliPageClient {
     /**
      * Sets the base URL of the Poli Page API. Defaults to {@code https://api.poli.page}.
      *
-     * <p>Override this for staging environments, self-hosted deployments, or testing against a
-     * mock server (e.g. WireMock). The URL must be absolute.
+     * <p>Override this for staging environments, self-hosted deployments, or testing against a mock
+     * server (e.g. WireMock). The URL must be absolute.
      *
      * @param baseUrl absolute URL of the API root — must not be {@code null}
      * @return this builder
@@ -236,8 +236,8 @@ public final class PoliPageClient {
     }
 
     /**
-     * Sets the maximum number of retry attempts on top of the initial request. Defaults to
-     * {@code 2} (i.e. up to three total attempts).
+     * Sets the maximum number of retry attempts on top of the initial request. Defaults to {@code
+     * 2} (i.e. up to three total attempts).
      *
      * <p>Retries fire on {@code 5xx} responses, {@code 429}, and network/timeout errors. {@code
      * 4xx} responses (other than {@code 429}) are never retried.
@@ -296,12 +296,12 @@ public final class PoliPageClient {
     }
 
     /**
-     * Registers a callback fired just before each retry sleep. Useful for metrics, structured
-     * logs, or distributed-trace annotations without instrumenting the SDK's SLF4J output.
+     * Registers a callback fired just before each retry sleep. Useful for metrics, structured logs,
+     * or distributed-trace annotations without instrumenting the SDK's SLF4J output.
      *
-     * <p>The hook is invoked synchronously on the thread waiting to retry. A hook that throws
-     * is caught and swallowed — a faulty hook will never break the request. Set to {@code null}
-     * to clear.
+     * <p>The hook is invoked synchronously on the thread waiting to retry. A hook that throws is
+     * caught and swallowed — a faulty hook will never break the request. Set to {@code null} to
+     * clear.
      *
      * @param onRetry the callback, or {@code null} to clear
      * @return this builder
@@ -312,10 +312,10 @@ public final class PoliPageClient {
     }
 
     /**
-     * Registers a callback fired when the SDK is about to surface a terminal failure from the
-     * retry loop (transport failure that wasn't recovered, or abort). Wire-mapped exceptions
-     * (4xx) raised by {@link page.poli.sdk.internal.ErrorParsing} from the facade do not fire
-     * this hook — they're not in scope of "retry exhausted".
+     * Registers a callback fired when the SDK is about to surface a terminal failure from the retry
+     * loop (transport failure that wasn't recovered, or abort). Wire-mapped exceptions (4xx) raised
+     * by {@link page.poli.sdk.internal.ErrorParsing} from the facade do not fire this hook —
+     * they're not in scope of "retry exhausted".
      *
      * <p>The hook is invoked synchronously. A hook that throws is caught and swallowed.
      *
@@ -347,8 +347,7 @@ public final class PoliPageClient {
               requestTimeout != null ? requestTimeout : DEFAULT_REQUEST_TIMEOUT,
               onRetry,
               onError);
-      HttpClient http =
-          HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+      HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
       ObjectMapper mapper = newObjectMapper();
       Transport transport =
           new HttpTransport(opts.baseUrl(), opts.apiKey(), opts.requestTimeout(), http, mapper);

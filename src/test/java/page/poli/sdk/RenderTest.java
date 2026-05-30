@@ -1,7 +1,7 @@
 package page.poli.sdk;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.absent;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.absent;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -44,7 +44,8 @@ import page.poli.sdk.model.PreviewResult;
 class RenderTest {
 
   private static final String TEST_KEY = "pp_test_secret";
-  private static final byte[] PDF_BYTES = "%PDF-1.4\nfake pdf body".getBytes(StandardCharsets.UTF_8);
+  private static final byte[] PDF_BYTES =
+      "%PDF-1.4\nfake pdf body".getBytes(StandardCharsets.UTF_8);
   private static final String PRESIGNED_PATH = "/presigned/abc.pdf";
 
   private static PoliPageClient newClient(WireMockRuntimeInfo wm) {
@@ -174,8 +175,7 @@ class RenderTest {
         postRequestedFor(urlEqualTo("/v1/render"))
             .withHeader(
                 "Idempotency-Key",
-                matching(
-                    "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")));
+                matching("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")));
   }
 
   @Test
@@ -249,8 +249,10 @@ class RenderTest {
     verify(getRequestedFor(urlPathEqualTo(PRESIGNED_PATH)).withHeader("Authorization", absent()));
   }
 
-  /** End-to-end error mapping through the Render facade. Pure-function mapping tests live in
-   *  {@code ErrorParsingTest}; these confirm the wiring inside Render. */
+  /**
+   * End-to-end error mapping through the Render facade. Pure-function mapping tests live in {@code
+   * ErrorParsingTest}; these confirm the wiring inside Render.
+   */
   @Nested
   class ErrorMapping {
 
@@ -262,8 +264,7 @@ class RenderTest {
                       .withStatus(status)
                       .withHeader("Content-Type", "application/json")
                       .withHeader("x-request-id", "req_test_42")
-                      .withBody(
-                          "{\"code\":\"" + code + "\",\"message\":\"" + message + "\"}")));
+                      .withBody("{\"code\":\"" + code + "\",\"message\":\"" + message + "\"}")));
     }
 
     @Test
@@ -296,8 +297,10 @@ class RenderTest {
 
       assertThatThrownBy(() -> newClient(wm).render().pdf(simpleInput()))
           .isInstanceOf(PoliPageNotFoundException.class)
-          .satisfies(t -> assertThat(((PoliPageNotFoundException) t).code())
-              .isEqualTo("DOCUMENT_NOT_FOUND"));
+          .satisfies(
+              t ->
+                  assertThat(((PoliPageNotFoundException) t).code())
+                      .isEqualTo("DOCUMENT_NOT_FOUND"));
     }
 
     @Test
@@ -329,8 +332,10 @@ class RenderTest {
 
       assertThatThrownBy(() -> newClient(wm).render().pdf(simpleInput()))
           .isInstanceOf(PoliPageRateLimitException.class)
-          .satisfies(t -> assertThat(((PoliPageRateLimitException) t).retryAfter())
-              .isEqualTo(Duration.ofSeconds(30)));
+          .satisfies(
+              t ->
+                  assertThat(((PoliPageRateLimitException) t).retryAfter())
+                      .isEqualTo(Duration.ofSeconds(30)));
     }
 
     @Test
@@ -445,8 +450,10 @@ class RenderTest {
 
       assertThatThrownBy(() -> newClient(wm).render().document(simpleInput()))
           .isInstanceOf(PoliPageNotFoundException.class)
-          .satisfies(t -> assertThat(((PoliPageNotFoundException) t).code())
-              .isEqualTo("VERSION_NOT_FOUND"));
+          .satisfies(
+              t ->
+                  assertThat(((PoliPageNotFoundException) t).code())
+                      .isEqualTo("VERSION_NOT_FOUND"));
     }
   }
 
@@ -503,8 +510,7 @@ class RenderTest {
     }
 
     @Test
-    void preview_accepts_InlineModeInput_and_body_carries_inline_template(
-        WireMockRuntimeInfo wm) {
+    void preview_accepts_InlineModeInput_and_body_carries_inline_template(WireMockRuntimeInfo wm) {
       stubPreviewSuccess();
 
       newClient(wm)
@@ -538,10 +544,7 @@ class RenderTest {
                   newClient(wm)
                       .render()
                       .preview(
-                          InlineModeInput.builder()
-                              .template("<p></p>")
-                              .data(Map.of())
-                              .build()))
+                          InlineModeInput.builder().template("<p></p>").data(Map.of()).build()))
           .isInstanceOf(PoliPageValidationException.class);
     }
   }
@@ -569,8 +572,7 @@ class RenderTest {
 
       assertThatThrownBy(() -> newClient(wm).render().pdfStream(simpleInput()))
           .isInstanceOf(PoliPageDownloadException.class)
-          .satisfies(
-              t -> assertThat(((PoliPageDownloadException) t).statusCode()).isEqualTo(403));
+          .satisfies(t -> assertThat(((PoliPageDownloadException) t).statusCode()).isEqualTo(403));
     }
   }
 }

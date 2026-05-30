@@ -8,8 +8,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Render input that carries the raw HTML body inline — no project / template resolution against
- * stored versions. Accepted only by {@code render().preview} (other render methods require a
- * stored project for caching, versioning, and reproducibility).
+ * stored versions. Accepted only by {@code render().preview} (other render methods require a stored
+ * project for caching, versioning, and reproducibility).
  *
  * <p>Construct via {@link #builder()}:
  *

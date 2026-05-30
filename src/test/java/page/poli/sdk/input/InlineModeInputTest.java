@@ -63,8 +63,7 @@ class InlineModeInputTest {
 
   @Test
   void implements_RenderInput_sealed_interface() {
-    RenderInput input =
-        InlineModeInput.builder().template("<p/>").data(Map.of()).build();
+    RenderInput input = InlineModeInput.builder().template("<p/>").data(Map.of()).build();
     assertThat(input).isInstanceOf(InlineModeInput.class);
   }
 }

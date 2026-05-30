@@ -5,8 +5,8 @@ import page.poli.sdk.PoliPageErrorCode;
 
 /**
  * Base of every exception raised by the Poli Page SDK. {@code RuntimeException} because the SDK
- * follows the modern-JVM-client convention of unchecked exceptions (Stripe Java, AWS SDK v2,
- * Google Cloud client libraries all do the same).
+ * follows the modern-JVM-client convention of unchecked exceptions (Stripe Java, AWS SDK v2, Google
+ * Cloud client libraries all do the same).
  *
  * <p>The hierarchy is {@code sealed}: callers can pattern-match exhaustively against the eight
  * final subclasses plus this base for the unmapped tail (typically 5xx that don't fall into any
@@ -49,8 +49,8 @@ public sealed class PoliPageException extends RuntimeException
   /**
    * Construct a new exception.
    *
-   * @param code the wire code (e.g. {@code "INVALID_API_KEY"}) or SDK-internal code (e.g.
-   *     {@code "network_error"})
+   * @param code the wire code (e.g. {@code "INVALID_API_KEY"}) or SDK-internal code (e.g. {@code
+   *     "network_error"})
    * @param statusCode HTTP status code, or {@code 0} for non-HTTP failures
    * @param message human-readable message — typically the {@code message} field from the wire
    *     response, or a built-in fallback

@@ -37,7 +37,9 @@ class DocumentsTest {
 
   private static final String DOC_JSON =
       "{"
-          + "\"documentId\":\"" + DOC_ID + "\","
+          + "\"documentId\":\""
+          + DOC_ID
+          + "\","
           + "\"organizationId\":\"org_42\","
           + "\"environment\":\"sandbox\","
           + "\"format\":\"A4\","
@@ -95,8 +97,12 @@ class DocumentsTest {
 
       verify(
           getRequestedFor(urlEqualTo(DOC_PATH))
-              .withHeader("Authorization", new com.github.tomakehurst.wiremock.matching.EqualToPattern("Bearer " + TEST_KEY))
-              .withHeader("Accept", new com.github.tomakehurst.wiremock.matching.EqualToPattern("application/json"))
+              .withHeader(
+                  "Authorization",
+                  new com.github.tomakehurst.wiremock.matching.EqualToPattern("Bearer " + TEST_KEY))
+              .withHeader(
+                  "Accept",
+                  new com.github.tomakehurst.wiremock.matching.EqualToPattern("application/json"))
               .withoutHeader("Content-Type")
               .withoutHeader("Idempotency-Key"));
     }
@@ -216,12 +222,10 @@ class DocumentsTest {
     private static final String THUMB_PATH = DOC_PATH + "/thumbnails";
 
     private static final String THUMB_RESPONSE_JSON =
-        "{"
-            + "\"thumbnails\":["
+        "{\"thumbnails\":["
             + "{\"page\":1,\"width\":320,\"height\":451,\"contentType\":\"image/png\",\"data\":\"aGVsbG8=\"},"
             + "{\"page\":2,\"width\":320,\"height\":451,\"contentType\":\"image/png\",\"data\":\"d29ybGQ=\"}"
-            + "]"
-            + "}";
+            + "]}";
 
     private void stubThumbnailsOk() {
       stubFor(
@@ -279,15 +283,11 @@ class DocumentsTest {
     void thumbnails_png_omits_quality_and_pages_when_unset(WireMockRuntimeInfo wm) {
       stubThumbnailsOk();
 
-      newClient(wm)
-          .documents()
-          .thumbnails(DOC_ID, ThumbnailOptions.builder().width(640).build());
+      newClient(wm).documents().thumbnails(DOC_ID, ThumbnailOptions.builder().width(640).build());
 
       verify(
           postRequestedFor(urlEqualTo(THUMB_PATH))
-              .withRequestBody(
-                  equalToJson(
-                      "{\"thumbnails\":{\"width\":640,\"format\":\"png\"}}")));
+              .withRequestBody(equalToJson("{\"thumbnails\":{\"width\":640,\"format\":\"png\"}}")));
     }
   }
 

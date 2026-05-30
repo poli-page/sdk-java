@@ -34,7 +34,9 @@ class DocumentsAsyncTest {
 
   private static final String DOC_JSON =
       "{"
-          + "\"documentId\":\"" + DOC_ID + "\","
+          + "\"documentId\":\""
+          + DOC_ID
+          + "\","
           + "\"organizationId\":\"org_42\","
           + "\"environment\":\"sandbox\","
           + "\"format\":\"A4\","
@@ -111,8 +113,7 @@ class DocumentsAsyncTest {
 
     verify(
         postRequestedFor(urlEqualTo(DOC_PATH + "/thumbnails"))
-            .withRequestBody(
-                equalToJson("{\"thumbnails\":{\"width\":320,\"format\":\"png\"}}")));
+            .withRequestBody(equalToJson("{\"thumbnails\":{\"width\":320,\"format\":\"png\"}}")));
   }
 
   @Test
@@ -141,8 +142,7 @@ class DocumentsAsyncTest {
   }
 
   @Test
-  void delete_410_wraps_in_CompletionException_with_PoliPageGoneException(
-      WireMockRuntimeInfo wm) {
+  void delete_410_wraps_in_CompletionException_with_PoliPageGoneException(WireMockRuntimeInfo wm) {
     stubFor(
         delete(urlEqualTo(DOC_PATH))
             .willReturn(

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URLEncoder;
-import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -25,9 +24,9 @@ import page.poli.sdk.model.ThumbnailOptions;
 /**
  * Asynchronous counterpart of {@link Documents}. Obtain via {@link PoliPageClient#documentsAsync}.
  *
- * <p>Same methods, same wire contract as {@link Documents}; the return type becomes
- * {@code CompletableFuture<T>} and {@code delete} returns {@code CompletableFuture<Void>}.
- * Exceptions inside the chain wrap in {@link CompletionException} per JDK convention.
+ * <p>Same methods, same wire contract as {@link Documents}; the return type becomes {@code
+ * CompletableFuture<T>} and {@code delete} returns {@code CompletableFuture<Void>}. Exceptions
+ * inside the chain wrap in {@link CompletionException} per JDK convention.
  */
 public final class DocumentsAsync {
 
@@ -74,8 +73,7 @@ public final class DocumentsAsync {
     Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
     String idempotencyKey = UUID.randomUUID().toString();
     return retry
-        .executeAsync(
-            () -> transport.postAsync(path, wireBody, idempotencyKey), "POST " + path)
+        .executeAsync(() -> transport.postAsync(path, wireBody, idempotencyKey), "POST " + path)
         .thenApply(
             response -> {
               ThumbnailResponse wrap = mapJson(response, path, ThumbnailResponse.class);
