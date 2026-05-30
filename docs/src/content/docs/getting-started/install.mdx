@@ -1,0 +1,54 @@
+---
+title: Install
+description: How to install the Poli Page Java SDK with Maven or Gradle.
+---
+
+The Poli Page Java SDK ships as `page.poli:sdk` on Maven Central. It targets Java 17 LTS and runs on every newer JVM.
+
+## Install with Maven
+
+```xml
+<dependency>
+  <groupId>page.poli</groupId>
+  <artifactId>sdk</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+## Install with Gradle
+
+```groovy
+dependencies {
+    implementation 'page.poli:sdk:1.0.0'
+}
+```
+
+Kotlin DSL:
+
+```kotlin
+dependencies {
+    implementation("page.poli:sdk:1.0.0")
+}
+```
+
+## Java version
+
+The SDK targets Java 17 and is tested against Java 17, 21, and 24 on Linux, plus Java 21 on macOS and Windows. See [runtime support](../../reference/runtime-support/) for the full matrix.
+
+## Example
+
+```java
+import page.poli.sdk.PoliPageClient;
+
+class Example {
+    public static void main(String[] args) {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .build();
+    }
+}
+```
+
+## See also
+- [Quick start](../quick-start/)
+- [Configuration](../../concepts/configuration/)

@@ -1,0 +1,77 @@
+---
+title: Retries and idempotency
+description: How the SDK retries transient failures and how render calls stay safe to retry.
+---
+
+The Poli Page SDK retries transient failures automatically. Every render request carries an auto-generated UUID v4 idempotency key so internal retries never produce duplicate stored documents on the server.
+
+## Default retry policy
+
+- `network_error`, `timeout`, 5xx responses, and 429 (`QUOTA_EXCEEDED`) are retried.
+- Up to `maxRetries` attempts (default `2` — three total attempts).
+- Exponential backoff starting at `retryDelay` (default `Duration.ofMillis(500)`), doubling each attempt with jitter in `[0.5, 1.5)`.
+- The server's `Retry-After` response header overrides the local back-off, capped at 30 seconds.
+- 4xx responses (other than 429) are never retried.
+- Interrupts and async cancellations are never retried.
+
+## Disabling retries
+
+Set `maxRetries(0)` on the builder to disable retries entirely.
+
+```java
+PoliPageClient client = PoliPageClient.builder()
+    .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+    .maxRetries(0)
+    .build();
+```
+
+## Idempotency
+
+Every `POST /v1/render` and `POST /v1/documents/{id}/thumbnails` request includes a `Idempotency-Key` header — a fresh UUID v4 per call. The API treats requests with the same key as the same operation, so retries from inside the SDK never create duplicate stored documents.
+
+The SDK does not currently expose a caller-supplied idempotency key. If you orchestrate your own retries on top of the SDK (not recommended), keep your retry budget aware of the SDK's internal one.
+
+## Observing retries
+
+Register an `onRetry` hook on the builder to feed metrics or structured logs:
+
+```java
+PoliPageClient client = PoliPageClient.builder()
+    .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+    .onRetry(event -> metrics.counter("poli.retry")
+        .tag("attempt", String.valueOf(event.attempt()))
+        .tag("reason", event.reason())
+        .increment())
+    .build();
+```
+
+## Example
+
+```java
+import java.time.Duration;
+import java.util.Map;
+import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.input.ProjectModeInput;
+
+class Example {
+    public static void main(String[] args) {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .maxRetries(4)
+            .retryDelay(Duration.ofMillis(250))
+            .build();
+
+        ProjectModeInput input = ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+            .build();
+
+        byte[] pdf = client.render().pdf(input);
+    }
+}
+```
+
+## See also
+- [Errors](../errors/)
+- [Configuration](../../concepts/configuration/)

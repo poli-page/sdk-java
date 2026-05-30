@@ -1,0 +1,16 @@
+---
+title: Migration
+description: Upgrade guides for moving between major versions of the Java SDK.
+---
+
+This page tracks breaking changes between major versions of `page.poli:sdk`. For the full per-release diff, see the [changelog](../changelog/).
+
+## v1.0
+
+The first stable release. The full v1.0 surface is documented in [`MIGRATION.md` in the repo](https://github.com/poli-page/sdk-java/blob/main/MIGRATION.md).
+
+Short version: the client is constructed via `PoliPageClient.builder()`, every render call goes through a facade (`render().pdf`, `render().pdfStream`, `render().document`, `render().preview`), every PDF-producing method requires `ProjectModeInput`, and inline mode (`InlineModeInput`) is supported only on `render().preview`. Async counterparts live on `renderAsync()` and `documentsAsync()` and return `CompletableFuture<T>`.
+
+## See also
+- [Changelog](../changelog/)
+- [Render modes](../../concepts/render-modes/)

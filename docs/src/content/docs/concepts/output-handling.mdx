@@ -1,0 +1,75 @@
+---
+title: Output handling
+description: Receive PDF bytes in memory, as a stream, written to disk, or stored server-side.
+---
+
+The SDK gives you four ways to handle a rendered PDF: in-memory bytes, an `InputStream`, a write-to-disk helper, or a stored document on the server. Pick the one that matches how your code consumes the output.
+
+## In-memory (`render().pdf`)
+
+```java
+byte[] pdf = client.render().pdf(input);
+// pdf: byte[] — write, upload, return as-is.
+```
+
+Best for documents that fit comfortably in process memory.
+
+## Streaming (`render().pdfStream`)
+
+For large PDFs or piping straight to an HTTP response or object store, use `pdfStream` and let the SDK keep memory bounded. The returned `InputStream` owns the underlying HTTP connection — wrap it in `try-with-resources` or leak a connection slot.
+
+```java
+try (InputStream stream = client.render().pdfStream(input)) {
+    Files.copy(stream, Path.of("./invoice.pdf"));
+}
+```
+
+## Write to file (`renderToFile`)
+
+`PoliPageClient.renderToFile(input, path)` streams bytes directly to disk with bounded memory. The destination is overwritten if it already exists.
+
+```java
+client.renderToFile(input, Path.of("./invoices/INV-001.pdf"));
+```
+
+For async callers there's `renderToFileAsync(input, path)` returning a `CompletableFuture<Void>`.
+
+## Server-side storage (`render().document`)
+
+When you want the PDF to live on Poli Page's servers (for later download, preview, or thumbnails), use `render().document`. It returns a `DocumentDescriptor` carrying `documentId`, `presignedPdfUrl`, and metadata.
+
+```java
+DocumentDescriptor doc = client.render().document(input);
+URL url = URI.create(doc.presignedPdfUrl()).toURL();
+```
+
+`presignedPdfUrl` has a 15-minute TTL. If it expires, call `client.documents().get(documentId)` to refresh.
+
+## Example
+
+```java
+import java.nio.file.Path;
+import java.util.Map;
+import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.input.ProjectModeInput;
+
+class Example {
+    public static void main(String[] args) {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .build();
+
+        ProjectModeInput input = ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+            .build();
+
+        client.renderToFile(input, Path.of("./invoices/INV-001.pdf"));
+    }
+}
+```
+
+## See also
+- [Cancellation](../../production/cancellation/)
+- [Retries and idempotency](../../production/retries-and-idempotency/)

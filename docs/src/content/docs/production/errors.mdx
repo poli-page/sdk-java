@@ -1,0 +1,96 @@
+---
+title: Errors
+description: How the Poli Page SDK surfaces failures and how to handle each error code.
+---
+
+import ErrorTable from '@preset/components/ErrorTable.astro';
+
+Every failure thrown by the SDK is a `PoliPageException` (a `RuntimeException`). The `code()` field tells you what went wrong; `requestId()` is what to quote when filing a support ticket. The hierarchy is sealed — pattern-match exhaustively against the eight final subclasses plus the base.
+
+## The exception hierarchy
+
+```java
+import page.poli.sdk.exception.PoliPageException;
+import page.poli.sdk.exception.PoliPageRateLimitException;
+import page.poli.sdk.exception.PoliPageAuthException;
+
+try {
+    byte[] pdf = client.render().pdf(input);
+} catch (PoliPageRateLimitException rl) {
+    queueForLater(rl.retryAfter());
+} catch (PoliPageAuthException auth) {
+    refreshCredentials();
+} catch (PoliPageException other) {
+    logger.error("poli failure: code={} status={} requestId={}",
+        other.code(), other.statusCode(), other.requestId(), other);
+    throw other;
+}
+```
+
+## SDK-internal codes
+
+These originate inside the SDK before any HTTP call (or in response to a network-layer failure). They are lowercase. `statusCode()` returns `0` because there is no HTTP response.
+
+<ErrorTable errors={[
+  { code: 'invalid_options', when: 'Builder validation failed (missing apiKey, non-absolute baseUrl, etc.).', recovery: 'Fix the builder call. Thrown synchronously by `build()`.' },
+  { code: 'network_error', when: 'TCP/TLS-layer failure reaching the API.', recovery: 'Automatically retried up to maxRetries times.' },
+  { code: 'timeout', when: 'The request did not complete within the configured `requestTimeout`.', recovery: 'Automatically retried up to maxRetries times. Raise `requestTimeout` if it keeps tripping.' },
+  { code: 'aborted', when: 'A blocking call was interrupted, or an async future was cancelled.', recovery: 'Not retryable. Surface to the caller.' },
+  { code: 'download_failed', when: 'The presigned-PDF GET returned non-2xx.', recovery: 'Re-render to get a fresh URL — the presigned URL has a short TTL.' },
+]} />
+
+## API codes
+
+Returned by the Poli Page API. Uppercase, SCREAMING_SNAKE_CASE. The SDK forwards the code verbatim. Compare against the constants in `PoliPageErrorCode`.
+
+<ErrorTable errors={[
+  { code: 'INVALID_API_KEY', when: 'The API key is malformed or revoked.', recovery: 'Rotate the key in the dashboard.' },
+  { code: 'MISSING_API_KEY', when: 'No API key was provided in the request.', recovery: 'Check the builder was called with `apiKey`.' },
+  { code: 'NOT_FOUND', when: 'The project/template slug or documentId does not exist.', recovery: 'Verify the slug/id; check the template is published in this environment.' },
+  { code: 'VALIDATION_ERROR', when: 'The `data` map does not satisfy the template schema.', recovery: 'Inspect the template schema in the dashboard.' },
+  { code: 'MISSING_DATA', when: 'The request body lacks a required `data` field.', recovery: 'Pass `data(Map.of())` (or with values) on every render call.' },
+  { code: 'QUOTA_EXCEEDED', when: 'You exceeded the per-key rate limit or monthly quota.', recovery: 'Automatically retried; bump tier for sustained higher throughput.' },
+  { code: 'PAYMENT_REQUIRED', when: 'The organization billing is past due.', recovery: 'Update the payment method in the dashboard.' },
+  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx.', recovery: 'Automatically retried; contact support if it persists.' },
+]} />
+
+The full list of API codes lives in [the reference](../../reference/errors/).
+
+## Example
+
+```java
+import java.util.Map;
+import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.PoliPageErrorCode;
+import page.poli.sdk.exception.PoliPageException;
+import page.poli.sdk.input.ProjectModeInput;
+
+class Example {
+    public static void main(String[] args) {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .build();
+
+        ProjectModeInput input = ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+            .build();
+
+        try {
+            byte[] pdf = client.render().pdf(input);
+            // ...
+        } catch (PoliPageException ex) {
+            if (PoliPageErrorCode.QUOTA_EXCEEDED.equals(ex.code())) {
+                // Custom strategy beyond the SDK's built-in retries.
+                return;
+            }
+            throw ex;
+        }
+    }
+}
+```
+
+## See also
+- [Retries and idempotency](../retries-and-idempotency/)
+- [Observability](../observability/)

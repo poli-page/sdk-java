@@ -1,0 +1,87 @@
+---
+title: Cancellation
+description: How to cancel in-flight requests with thread interrupts or CompletableFuture.cancel.
+---
+
+The Java SDK exposes two cancellation idioms — one per facade. Blocking calls honor `Thread.interrupt()`; async calls honor `CompletableFuture.cancel(true)`. Both surface as a `PoliPageException` with `code() == "aborted"`.
+
+## Blocking facade
+
+Interrupt the thread that's waiting inside a `render()` or `documents()` call. The SDK catches `InterruptedException`, restores the interrupt flag, and throws.
+
+```java
+Thread worker = Thread.currentThread();
+
+ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
+timer.schedule(worker::interrupt, 5, TimeUnit.SECONDS);
+
+try {
+    byte[] pdf = client.render().pdf(input);
+} catch (PoliPageException ex) {
+    if ("aborted".equals(ex.code())) {
+        System.out.println("cancelled");
+    } else {
+        throw ex;
+    }
+}
+```
+
+## Async facade
+
+Cancel the returned future with `cancel(true)`. The SDK's async retry loop uses `CompletableFuture.delayedExecutor` for back-off, so cancellation interrupts the next attempt as well.
+
+```java
+CompletableFuture<byte[]> future = client.renderAsync().pdf(input);
+
+ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
+timer.schedule(() -> future.cancel(true), 5, TimeUnit.SECONDS);
+
+byte[] pdf = future.get(); // throws CancellationException if cancelled
+```
+
+## Cancellation vs timeout
+
+`requestTimeout` (the builder option) is a per-attempt deadline enforced inside the JDK's `HttpClient`. Caller cancellation is independent — whichever fires first wins.
+
+`aborted` errors are **not retried**. The SDK assumes the caller meant it.
+
+## Example
+
+```java
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.input.ProjectModeInput;
+
+class Example {
+    public static void main(String[] args) throws Exception {
+        PoliPageClient client = PoliPageClient.builder()
+            .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+            .build();
+
+        ProjectModeInput input = ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+            .build();
+
+        CompletableFuture<byte[]> future = client.renderAsync().pdf(input);
+
+        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
+        timer.schedule(() -> future.cancel(true), 10, TimeUnit.SECONDS);
+
+        try {
+            byte[] pdf = future.get();
+        } finally {
+            timer.shutdown();
+        }
+    }
+}
+```
+
+## See also
+- [Configuration](../../concepts/configuration/)
+- [Errors](../errors/)
