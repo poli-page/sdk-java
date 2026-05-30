@@ -1,0 +1,62 @@
+# Build output
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+# Maven Wrapper jar is the one .jar we DO want committed — it's how `./mvnw`
+# bootstraps Maven on a fresh checkout. The `*.jar` rule above would otherwise
+# exclude it.
+!.mvn/wrapper/maven-wrapper.jar
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# Logs and reports
+*.log
+hs_err_pid*
+replay_pid*
+.flattened-pom.xml
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# Local test scratch
+testdata/output/
+*.pdf
+!testdata/**/*.pdf

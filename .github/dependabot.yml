@@ -1,0 +1,51 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - java
+    groups:
+      test-dependencies:
+        patterns:
+          - "org.junit.*"
+          - "org.assertj:*"
+          - "org.wiremock:*"
+        update-types:
+          - minor
+          - patch
+      build-plugins:
+        patterns:
+          - "org.apache.maven.plugins:*"
+          - "com.diffplug.spotless:*"
+          - "org.jacoco:*"
+          - "org.codehaus.mojo:*"
+          - "com.github.siom79.japicmp:*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

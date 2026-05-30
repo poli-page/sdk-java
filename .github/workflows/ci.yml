@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Java ${{ matrix.java }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        java: ['17', '21', '25']
+        include:
+          - os: windows-latest
+            java: '21'
+          - os: macos-latest
+            java: '21'
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Detect repo state
+        id: state
+        run: |
+          if [ -f pom.xml ]; then
+            echo "has_pom=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_pom=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f pom.xml ] && grep -q spotless-maven-plugin pom.xml; then
+            echo "has_spotless=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_spotless=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -d src/test/java ] && find src/test/java -name '*.java' -type f | grep -q .; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Spotless check
+        if: steps.state.outputs.has_spotless == 'true'
+        run: ./mvnw -B spotless:check
+
+      - name: No spotless config yet — skipping
+        if: steps.state.outputs.has_spotless == 'false'
+        run: echo "Add spotless-maven-plugin to pom.xml to enable formatting checks."
+
+      - name: Compile
+        if: steps.state.outputs.has_pom == 'true'
+        run: ./mvnw -B compile
+
+      - name: No pom.xml yet — skipping compile/test/package
+        if: steps.state.outputs.has_pom == 'false'
+        run: echo "Add pom.xml to enable Maven build steps."
+
+      - name: Test + verify (with JaCoCo coverage gate)
+        if: steps.state.outputs.has_pom == 'true' && steps.state.outputs.has_tests == 'true'
+        run: ./mvnw -B verify
+
+      - name: Package only (no tests in src/test/java yet)
+        if: steps.state.outputs.has_pom == 'true' && steps.state.outputs.has_tests == 'false'
+        run: ./mvnw -B package -DskipTests
+
+      - name: Javadoc
+        if: steps.state.outputs.has_pom == 'true'
+        run: ./mvnw -B javadoc:javadoc
+
+      - name: Install smoke
+        if: steps.state.outputs.has_pom == 'true' && matrix.os == 'ubuntu-latest'
+        run: |
+          ./mvnw -B -DskipTests install
+          SDK_VERSION=$(./mvnw -q -Dexpression=project.version -DforceStdout help:evaluate)
+          echo "Smoke-testing SDK ${SDK_VERSION} as a downstream Maven consumer"
+
+          SMOKE_DIR="$(mktemp -d)"
+          cd "$SMOKE_DIR"
+          mkdir -p src/main/java/smoke
+
+          cat > pom.xml <<POM
+          <?xml version="1.0" encoding="UTF-8"?>
+          <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>page.poli.smoke</groupId>
+              <artifactId>install-smoke</artifactId>
+              <version>0</version>
+              <properties>
+                  <maven.compiler.release>17</maven.compiler.release>
+                  <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+              </properties>
+              <dependencies>
+                  <dependency>
+                      <groupId>page.poli</groupId>
+                      <artifactId>sdk</artifactId>
+                      <version>${SDK_VERSION}</version>
+                  </dependency>
+              </dependencies>
+              <build>
+                  <plugins>
+                      <plugin>
+                          <groupId>org.codehaus.mojo</groupId>
+                          <artifactId>exec-maven-plugin</artifactId>
+                          <version>3.3.0</version>
+                      </plugin>
+                  </plugins>
+              </build>
+          </project>
+          POM
+
+          cat > src/main/java/smoke/Main.java <<'JAVA'
+          package smoke;
+
+          public class Main {
+              public static void main(String[] args) throws Exception {
+                  // Phase 0: just assert the SDK jar is on the classpath and a public type resolves.
+                  Class<?> clientClass = Class.forName("page.poli.sdk.PoliPageClient");
+                  if (clientClass == null) {
+                      throw new AssertionError("PoliPageClient not on classpath");
+                  }
+                  System.out.println("Install smoke OK: " + clientClass.getName());
+              }
+          }
+          JAVA
+
+          # Until phase 1 adds PoliPageClient, ClassNotFoundException is the expected outcome.
+          # Compile must succeed regardless (proves the JAR is consumable).
+          mvn -B -q compile
+          if mvn -B -q exec:java -Dexec.mainClass=smoke.Main 2>/dev/null; then
+              echo "PoliPageClient is reachable — full smoke passed."
+          else
+              echo "PoliPageClient not yet implemented — compile-only smoke passed (phase 0 expected behavior)."
+          fi

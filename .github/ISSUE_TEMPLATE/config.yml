@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Poli Page documentation
+    url: https://docs.poli.page
+    about: Platform-wide documentation — start here if you're new to Poli Page.
+  - name: Security disclosures
+    url: mailto:security@poli.page
+    about: Report a security vulnerability privately. Do not file a public issue.
+  - name: Cross-SDK discussions
+    url: https://github.com/poli-page/sdk-node/discussions
+    about: Behavioural questions that span all SDKs land in the Node SDK's discussions.

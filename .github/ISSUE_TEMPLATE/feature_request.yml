@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a new capability, behaviour, or API surface for the Java SDK.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests that change the **wire contract** or the cross-SDK behaviour also need a
+        discussion in [`poli-page/sdk-node`](https://github.com/poli-page/sdk-node) so every SDK
+        stays in step. Java-only ergonomic improvements can be discussed entirely here.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Is this Java-only or cross-SDK?
+      options:
+        - Java-only (idiom, API ergonomics, framework integration)
+        - Cross-SDK (wire contract, error code, retry behaviour, public method)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today? What's painful or surprising?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        Sketch of the API or behaviour change. If it adds a public method, show the signature.
+        Mention any backwards-compatibility implications.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other shapes you ruled out, and why.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links to related issues, prior art in other SDKs, screenshots, anything useful.
