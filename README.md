@@ -7,8 +7,8 @@
 
 Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 
-→ Full documentation: **[poli-page.github.io/sdk-java](https://poli-page.github.io/sdk-java/)**
-→ Javadoc: **[javadoc.io/doc/page.poli/sdk](https://javadoc.io/doc/page.poli/sdk)**
+→ **Documentation**: **<https://poli-page.github.io/sdk-java/>**
+→ API reference on javadoc.io: <https://javadoc.io/doc/page.poli/sdk>
 
 ## Install
 
@@ -38,16 +38,16 @@ Requires Java 17 or later. Runtime dependencies: `org.slf4j:slf4j-api` (logging 
 
 ## Quick start
 
-### Blocking
+### Async
 
 ```java
 import page.poli.sdk.PoliPageClient;
-import page.poli.sdk.PoliPageClientOptions;
 import page.poli.sdk.input.ProjectModeInput;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class Main {
     public static void main(String[] args) throws Exception {
@@ -55,13 +55,14 @@ public class Main {
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
             .build();
 
-        byte[] pdf = client.render().pdf(ProjectModeInput.builder()
+        CompletableFuture<byte[]> future = client.renderAsync().pdf(ProjectModeInput.builder()
             .project("getting-started")
             .template("welcome")
             .version("1.0.0")
             .data(Map.of("name", "World"))
             .build());
 
+        byte[] pdf = future.join();
         Files.write(Path.of("welcome.pdf"), pdf);
         // pdf is a byte[] of the rendered PDF document
     }
@@ -70,39 +71,20 @@ public class Main {
 
 Every Poli Page org comes pre-provisioned with a `getting-started/welcome` template, so the snippet above runs as-is the moment you have an API key. Swap the slugs once you've pushed your own templates with the `poli` CLI.
 
-### Async
+### Blocking
 
 ```java
-import java.util.concurrent.CompletableFuture;
-
-CompletableFuture<byte[]> future = client.renderAsync().pdf(ProjectModeInput.builder()
+byte[] pdf = client.render().pdf(ProjectModeInput.builder()
     .project("billing")
     .template("invoice")
     .version("1.0.0")
     .data(Map.of("invoiceNumber", "INV-001"))
     .build());
 
-future
-    .thenAccept(pdf -> Files.write(Path.of("invoice.pdf"), pdf))
-    .exceptionally(err -> { logger.error("render failed", err); return null; });
+Files.write(Path.of("invoice.pdf"), pdf);
 ```
 
 Both surfaces share the same `PoliPageClient` — `client.render()` returns the blocking facade, `client.renderAsync()` returns the `CompletableFuture` facade. They sit on top of the same `java.net.http.HttpClient` connection pool.
-
-### URL output — render and store, then download later
-
-```java
-import page.poli.sdk.model.DocumentDescriptor;
-
-DocumentDescriptor doc = client.render().document(ProjectModeInput.builder()
-    .project("billing")
-    .template("invoice")
-    .version("1.0.0")
-    .data(Map.of("invoiceNumber", "INV-001"))
-    .build());
-
-// doc.documentId(), doc.pageCount(), doc.sizeBytes(), doc.presignedPdfUrl()
-```
 
 ## Working with stored documents
 
