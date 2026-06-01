@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Runnable end-to-end demo for the page.poli:sdk Java client.
+# See examples/demo/README.md for details.
+#
+# If POLI_PAGE_API_KEY is unset, the demo prompts for a pp_test_* key and
+# persists it to `.env` at the repo root. Subsequent runs pick it up
+# automatically.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+REPO_ROOT="$PWD"
+
+./mvnw -q install -DskipTests
+./mvnw -q -f examples/demo/pom.xml exec:java -Dpoli.demo.repoRoot="$REPO_ROOT"

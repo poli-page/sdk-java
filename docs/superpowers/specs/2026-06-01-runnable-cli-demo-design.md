@@ -39,10 +39,8 @@ provide a single human-facing pass over the public surface — equivalent to
 - `documents.get()`, `documents.delete()`, `documents.thumbnails()`. Same
   rationale as Node — the demo mirrors Node's six steps for cross-SDK
   byte-comparability of the printed walkthrough.
-- A `.env` file loader. Java has no stdlib dotenv equivalent; pulling in a
-  dependency for an example would be wrong-shaped. `POLI_PAGE_API_KEY` is read
-  from the process environment; missing-key produces a clear error pointing at
-  the README.
+- The async facade demo. Sync + async parity is a test concern, not a demo
+  concern.
 
 ## 3. Layout
 
@@ -90,21 +88,18 @@ formatting rules don't apply to throwaway example projects.
 
 ## 5. `scripts/demo`
 
-Bash, ~15 lines, `set -euo pipefail`.
+Bash, ~10 lines, `set -euo pipefail`.
 
 Responsibilities, in order:
 
 1. `cd "$(dirname "$0")/.."` so the script works from any cwd.
-2. Validate `${POLI_PAGE_API_KEY:-}` is non-empty. If missing, print:
-   ```
-   POLI_PAGE_API_KEY is not set.
-   See examples/demo/README.md for setup instructions.
-   ```
-   and exit `1`.
-3. `./mvnw -q install -DskipTests` — publishes the working-tree SDK to local
+2. `./mvnw -q install -DskipTests` — publishes the working-tree SDK to local
    `~/.m2`. Silent on success; verbose Maven output on failure.
-4. `./mvnw -q -f examples/demo/pom.xml exec:java`. Any additional `$@` is
-   forwarded as `-Dexec.args="…"` for future extensibility (unused for v1).
+3. `./mvnw -q -f examples/demo/pom.xml exec:java`.
+
+The script does **not** validate `POLI_PAGE_API_KEY` — the Java program
+owns that flow (see §6.6). If unset, the program prompts and persists the
+key to a repo-root `.env` (mirroring the Node demo's `ensureApiKey`).
 
 The script does **not** check `JAVA_HOME`. If it's unset, `./mvnw` itself
 fails with macOS's "Unable to locate a Java Runtime" message — the demo
@@ -238,16 +233,52 @@ Inline ANSI, zero dependencies.
 
 ### 6.5 Exit codes
 
-| Outcome                                                | Exit |
-| ------------------------------------------------------ | ---- |
-| All six steps complete (step 6 throws + catch hits)    | `0`  |
-| Step 1–5 throws (any exception)                        | `1`  |
-| Step 6 *succeeds* (the deliberate error didn't fire)   | `1`  |
-| `POLI_PAGE_API_KEY` missing                            | `1`  |
+| Outcome                                                       | Exit |
+| ------------------------------------------------------------- | ---- |
+| All six steps complete (step 6 throws + catch hits)           | `0`  |
+| Step 1–5 throws (any exception)                               | `1`  |
+| Step 6 *succeeds* (the deliberate error didn't fire)          | `1`  |
+| Interactive prompt receives a value missing the `pp_test_` prefix | `1`  |
 
 Unexpected exceptions from steps 1–5 bubble out of `main` and are printed
 by the JVM with their stack trace — that's the right UX for a demo, since
 the trace tells the user exactly where the SDK call failed.
+
+### 6.6 API key & base URL resolution
+
+Mirrors the Node demo's `_shared.mjs` (`ensureApiKey` / `resolveBaseUrl`).
+Java-side equivalents are inner classes on `Main`.
+
+**`POLI_PAGE_API_KEY`** — three-tier:
+
+1. Process environment.
+2. `.env` at the repo root (resolved as `examples/demo/../../.env`, absolute
+   path printed in the "using …" log line).
+3. **Interactive prompt** — yellow banner between dim rules, the same
+   instructional copy as Node (sign-in URL, `keys` page URL, where the
+   key will be saved), a `Paste your pp_test_* key (or Ctrl-C to cancel):`
+   prompt read via `BufferedReader.readLine(System.in)`. Validates the
+   `pp_test_` prefix → red `✗` + exit `1` if missing. On success appends
+   `POLI_PAGE_API_KEY=<value>\n` to `.env` (with a leading newline if the
+   file does not already end with one) and prints green `✔ saved to …`.
+
+**`POLI_PAGE_BASE_URL`** — same three tiers, no prompt. Default is
+`https://api.poli.page` (matches Node verbatim).
+
+**`EnvFile` helper** — package-private inner class on `Main`:
+
+- `Map<String,String> read(Path)` — line-oriented parser, skips blanks
+  and `#` comments, trims, strips a single matching pair of surrounding
+  `'` or `"`, last-wins.
+- `void append(Path, String key, String value)` — uses
+  `Files.writeString(..., CREATE, APPEND)`, prepends `\n` if the file's
+  last byte isn't a newline (checked via `FileChannel`, no full read).
+
+**Java-specific concession** — `System.console()` is null under
+`mvn exec:java`, so the prompt reads from `System.in` via
+`BufferedReader(new InputStreamReader(System.in, UTF_8))`. The pasted
+key is visible on screen; Node's `readline.question` doesn't mask it
+either, so no parity loss.
 
 ## 7. `examples/demo/README.md`
 
@@ -286,17 +317,20 @@ in its preamble so the deviation is intentional rather than accidental.
 The demo is "done" when:
 
 1. `POLI_PAGE_API_KEY=pp_test_... ./scripts/demo` runs to completion with
-   exit code `0` against the develop API.
+   exit code `0` against the configured API.
 2. `examples/demo/output/` contains four files: `render.pdf`, `stream.pdf`,
    `file.pdf` (all valid PDFs, `%PDF` magic), and `preview.html` (valid
    HTML).
 3. The deliberate-error step prints the inspected `PoliPageException`
    fields and the success checkmark.
-4. Running the same command with `POLI_PAGE_API_KEY` unset prints the
-   pointer-to-README error and exits `1`.
-5. Running with `POLI_PAGE_BASE_URL=https://api-develop.poli.page`
-   explicitly set produces the same output as not setting it.
-6. `./mvnw verify` (the main build) is unchanged — the demo module is not
+4. Running `./scripts/demo` with `POLI_PAGE_API_KEY` unset and no `.env`
+   shows the prompt, accepts a `pp_test_*` key, appends it to `.env` at
+   the repo root, and runs the demo to completion.
+5. Running `./scripts/demo` again after step 4 picks the key up from
+   `.env` without prompting (logs `using POLI_PAGE_API_KEY from …`).
+6. Pasting a value without the `pp_test_` prefix at the prompt exits `1`
+   without writing to `.env`.
+7. `./mvnw verify` (the main build) is unchanged — the demo module is not
    in the reactor.
 
 ## 10. Out of scope (revisit later)
