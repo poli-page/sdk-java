@@ -50,6 +50,8 @@ public final class ErrorParsing {
       ObjectMapper mapper) {
     Parsed parsed = parseBody(body, mapper);
     String code = parsed.code != null ? parsed.code : defaultCodeForStatus(statusCode);
+    // RFC 7807: prefer `detail` (specific) > `title` (generic) > legacy `message` > canned.
+    // No "API error (NNN)" synthesis.
     String message = parsed.message != null ? parsed.message : ("HTTP " + statusCode);
 
     return switch (statusCode) {
@@ -114,7 +116,16 @@ public final class ErrorParsing {
       if (root == null || !root.isObject()) {
         return Parsed.EMPTY;
       }
-      return new Parsed(textOrNull(root, "code"), textOrNull(root, "message"));
+      String code = textOrNull(root, "code");
+      // RFC 7807 preference for message: detail > title > legacy message field.
+      String message = textOrNull(root, "detail");
+      if (message == null) {
+        message = textOrNull(root, "title");
+      }
+      if (message == null) {
+        message = textOrNull(root, "message");
+      }
+      return new Parsed(code, message);
     } catch (IOException ignored) {
       return Parsed.EMPTY;
     }

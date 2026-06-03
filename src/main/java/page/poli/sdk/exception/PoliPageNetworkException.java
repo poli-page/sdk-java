@@ -1,6 +1,7 @@
 package page.poli.sdk.exception;
 
 import org.jspecify.annotations.Nullable;
+import page.poli.sdk.PoliPageErrorCode;
 
 /**
  * Transport-level failure: DNS resolution, connection refused, TLS handshake, mid-stream socket
@@ -19,5 +20,10 @@ public final class PoliPageNetworkException extends PoliPageException {
    */
   public PoliPageNetworkException(String code, String message, @Nullable Throwable cause) {
     super(code, 0, message, null, cause);
+  }
+
+  @Override
+  protected Integer payloadStatus() {
+    return PoliPageErrorCode.TIMEOUT.equals(code()) ? 504 : 503;
   }
 }

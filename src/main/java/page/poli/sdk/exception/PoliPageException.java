@@ -106,4 +106,29 @@ public sealed class PoliPageException extends RuntimeException
     }
     return statusCode == 429;
   }
+
+  /**
+   * Returns the canonical wire payload for framework integrations.
+   * Status surfaces the API HTTP status when known, 503 for network failures,
+   * 504 for timeouts, or {@code null} when no status applies. The
+   * {@link #statusCode()} accessor stays {@code 0} for transport failures —
+   * only the payload surfaces 503/504, so callers that read {@code statusCode()}
+   * directly are unaffected.
+   *
+   * @return the canonical wire payload
+   */
+  public ErrorPayload toPayload() {
+    return new ErrorPayload(code, getMessage(), payloadStatus(), requestId);
+  }
+
+  /**
+   * Hook overridden by {@link PoliPageNetworkException} (503 for network errors,
+   * 504 for timeouts via the {@code code()} discriminator). Default: the API
+   * status when present, otherwise {@code null}.
+   *
+   * @return the wire status surfaced by {@link #toPayload()}, or {@code null}
+   */
+  protected @Nullable Integer payloadStatus() {
+    return statusCode != 0 ? statusCode : null;
+  }
 }
