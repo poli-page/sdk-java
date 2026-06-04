@@ -3,6 +3,7 @@ package page.poli.sdk;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +13,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import org.jspecify.annotations.Nullable;
+import page.poli.sdk.PoliPageErrorCode;
+import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.internal.ErrorParsing;
 import page.poli.sdk.internal.RetryLoop;
@@ -88,6 +91,31 @@ public final class DocumentsAsync {
     return retry
         .executeAsync(() -> transport.deleteAsync(path), "DELETE " + path)
         .thenAccept(response -> failIfNotSuccess(response, path));
+  }
+
+  /**
+   * Async variant of {@link page.poli.sdk.Documents#downloadPdf(DocumentDescriptor)}.
+   *
+   * @param descriptor the descriptor whose {@code presignedPdfUrl} to fetch
+   * @return a future of the PDF bytes; completes exceptionally with {@code
+   *     CompletionException(PoliPageDownloadException)} on non-2xx
+   */
+  public CompletableFuture<byte[]> downloadPdf(DocumentDescriptor descriptor) {
+    URI url = URI.create(descriptor.presignedPdfUrl());
+    return transport
+        .getPresignedAsync(url)
+        .thenApply(
+            response -> {
+              int status = response.statusCode();
+              if (status < 200 || status >= 300) {
+                throw new PoliPageDownloadException(
+                    PoliPageErrorCode.DOWNLOAD_FAILED,
+                    status,
+                    "Failed to download PDF from presigned URL: HTTP " + status,
+                    null);
+              }
+              return response.body();
+            });
   }
 
   // -- internals -----------------------------------------------------
