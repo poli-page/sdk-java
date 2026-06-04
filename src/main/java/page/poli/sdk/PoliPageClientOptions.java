@@ -19,4 +19,6 @@ record PoliPageClientOptions(
     Duration retryDelay,
     Duration requestTimeout,
     @Nullable Consumer<RetryEvent> onRetry,
-    @Nullable Consumer<Throwable> onError) {}
+    @Nullable Consumer<Throwable> onError,
+    @Nullable Consumer<RequestEvent> onRequest,
+    @Nullable Consumer<ResponseEvent> onResponse) {}

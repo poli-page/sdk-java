@@ -22,6 +22,14 @@ import java.util.concurrent.CompletableFuture;
 public interface Transport {
 
   /**
+   * Returns the base URL the transport is configured with. Used to build {@link
+   * page.poli.sdk.RequestEvent}s at call sites so the retry loop receives a fully-qualified URL.
+   *
+   * @return the absolute base URL
+   */
+  URI baseUrl();
+
+  /**
    * Send a JSON POST to {@code baseUrl + path} with the standard auth / accept / idempotency
    * headers.
    *

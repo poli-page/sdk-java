@@ -49,6 +49,11 @@ public final class HttpTransport implements Transport {
     this.mapper = mapper;
   }
 
+  @Override
+  public URI baseUrl() {
+    return baseUrl;
+  }
+
   // -- Sync verbs -----------------------------------------------------
 
   @Override

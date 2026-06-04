@@ -196,6 +196,8 @@ public final class PoliPageClient {
     private @Nullable Duration requestTimeout;
     private @Nullable Consumer<RetryEvent> onRetry;
     private @Nullable Consumer<Throwable> onError;
+    private @Nullable Consumer<RequestEvent> onRequest;
+    private @Nullable Consumer<ResponseEvent> onResponse;
 
     private Builder() {}
 
@@ -328,6 +330,31 @@ public final class PoliPageClient {
     }
 
     /**
+     * Registers a callback fired immediately before each HTTP attempt. Fires once per attempt
+     * (including retries). A hook that throws is caught and swallowed.
+     *
+     * @param onRequest the callback, or {@code null} to clear
+     * @return this builder
+     */
+    public Builder onRequest(@Nullable Consumer<RequestEvent> onRequest) {
+      this.onRequest = onRequest;
+      return this;
+    }
+
+    /**
+     * Registers a callback fired after each observed HTTP response. Fires once per attempt whenever
+     * the transport produces a response (success or error status). Transport failures (timeout,
+     * network error) do not fire this hook. A hook that throws is caught and swallowed.
+     *
+     * @param onResponse the callback, or {@code null} to clear
+     * @return this builder
+     */
+    public Builder onResponse(@Nullable Consumer<ResponseEvent> onResponse) {
+      this.onResponse = onResponse;
+      return this;
+    }
+
+    /**
      * Validates the builder state and produces an immutable {@link PoliPageClient}.
      *
      * @return a configured, ready-to-use client
@@ -347,7 +374,9 @@ public final class PoliPageClient {
               retryDelay != null ? retryDelay : DEFAULT_RETRY_DELAY,
               requestTimeout != null ? requestTimeout : DEFAULT_REQUEST_TIMEOUT,
               onRetry,
-              onError);
+              onError,
+              onRequest,
+              onResponse);
       HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
       ObjectMapper mapper = newObjectMapper();
       Transport transport =
@@ -359,7 +388,9 @@ public final class PoliPageClient {
               Backoff.defaultJitter(),
               Sleeper.THREAD,
               opts.onRetry(),
-              opts.onError());
+              opts.onError(),
+              opts.onRequest(),
+              opts.onResponse());
       return new PoliPageClient(opts, transport, mapper, retry);
     }
   }

@@ -1,6 +1,7 @@
 package page.poli.sdk.internal;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
@@ -12,6 +13,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 import page.poli.sdk.PoliPageErrorCode;
+import page.poli.sdk.RequestEvent;
+import page.poli.sdk.ResponseEvent;
 import page.poli.sdk.RetryEvent;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageNetworkException;
@@ -46,6 +49,8 @@ public final class RetryLoop {
   private final Sleeper sleeper;
   private final @Nullable Consumer<RetryEvent> onRetry;
   private final @Nullable Consumer<Throwable> onError;
+  private final @Nullable Consumer<RequestEvent> onRequest;
+  private final @Nullable Consumer<ResponseEvent> onResponse;
 
   /**
    * @param maxRetries number of retries on top of the initial attempt (0 disables retries)
@@ -54,6 +59,9 @@ public final class RetryLoop {
    * @param sleeper injectable sleeper (production uses {@link Sleeper#THREAD})
    * @param onRetry optional hook fired before each retry sleep ({@code null} for no-op)
    * @param onError optional hook fired before a terminal failure throws ({@code null} for no-op)
+   * @param onRequest optional hook fired before each HTTP attempt ({@code null} for no-op)
+   * @param onResponse optional hook fired after each observed HTTP response ({@code null} for
+   *     no-op)
    */
   public RetryLoop(
       int maxRetries,
@@ -61,7 +69,9 @@ public final class RetryLoop {
       Backoff backoff,
       Sleeper sleeper,
       @Nullable Consumer<RetryEvent> onRetry,
-      @Nullable Consumer<Throwable> onError) {
+      @Nullable Consumer<Throwable> onError,
+      @Nullable Consumer<RequestEvent> onRequest,
+      @Nullable Consumer<ResponseEvent> onResponse) {
     if (maxRetries < 0) {
       throw new IllegalArgumentException("maxRetries must be >= 0, got: " + maxRetries);
     }
@@ -71,15 +81,92 @@ public final class RetryLoop {
     this.sleeper = sleeper;
     this.onRetry = onRetry;
     this.onError = onError;
+    this.onRequest = onRequest;
+    this.onResponse = onResponse;
+  }
+
+  /**
+   * Six-arg constructor for callers that don't need request/response hooks (tests, mostly). Passes
+   * {@code null} for the two new hooks.
+   */
+  public RetryLoop(
+      int maxRetries,
+      Duration baseDelay,
+      Backoff backoff,
+      Sleeper sleeper,
+      @Nullable Consumer<RetryEvent> onRetry,
+      @Nullable Consumer<Throwable> onError) {
+    this(maxRetries, baseDelay, backoff, sleeper, onRetry, onError, null, null);
   }
 
   /** Convenience constructor for callers that don't need hooks (tests, mostly). */
   public RetryLoop(int maxRetries, Duration baseDelay, Backoff backoff, Sleeper sleeper) {
-    this(maxRetries, baseDelay, backoff, sleeper, null, null);
+    this(maxRetries, baseDelay, backoff, sleeper, null, null, null, null);
   }
 
   /**
-   * Execute the given transport call, retrying as configured.
+   * Execute the given transport call with {@code onRequest} / {@code onResponse} hooks fired on
+   * each attempt.
+   *
+   * @param call the transport call to run; invoked up to {@code maxRetries + 1} times
+   * @param label human-readable description used in exception messages (e.g. {@code "POST
+   *     /v1/render"})
+   * @param method HTTP method string (e.g. {@code "POST"}, {@code "GET"}) — passed to the {@code
+   *     onRequest} hook
+   * @param url fully-qualified request URL — passed to the {@code onRequest} hook
+   * @return the final {@link HttpResponse}
+   */
+  public HttpResponse<byte[]> execute(IoCall call, String label, String method, URI url) {
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
+      fireOnRequest(method, url, attempt + 1);
+      long t0 = System.nanoTime();
+      try {
+        HttpResponse<byte[]> response = call.send();
+        fireOnResponse(response, t0);
+        if (!isRetryableStatus(response.statusCode()) || attempt == maxRetries) {
+          return response;
+        }
+        Duration delay = pickDelay(attempt, readRetryAfter(response));
+        fireOnRetry(attempt, delay, response.statusCode(), reasonForStatus(response.statusCode()));
+        sleep(delay, label);
+      } catch (HttpTimeoutException e) {
+        if (attempt == maxRetries) {
+          PoliPageNetworkException terminal =
+              new PoliPageNetworkException(
+                  PoliPageErrorCode.TIMEOUT, label + " timed out: " + e.getMessage(), e);
+          fireOnError(terminal);
+          throw terminal;
+        }
+        Duration delay = backoff.compute(attempt, baseDelay);
+        fireOnRetry(attempt, delay, null, PoliPageErrorCode.TIMEOUT);
+        sleep(delay, label);
+      } catch (IOException e) {
+        if (attempt == maxRetries) {
+          PoliPageNetworkException terminal =
+              new PoliPageNetworkException(
+                  PoliPageErrorCode.NETWORK_ERROR, label + " failed: " + e.getMessage(), e);
+          fireOnError(terminal);
+          throw terminal;
+        }
+        Duration delay = backoff.compute(attempt, baseDelay);
+        fireOnRetry(attempt, delay, null, PoliPageErrorCode.NETWORK_ERROR);
+        sleep(delay, label);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        // Interruption is a caller-initiated abort, not a failure the SDK is reporting —
+        // onError intentionally does not fire here.
+        throw new PoliPageException(
+            PoliPageErrorCode.ABORTED, 0, label + " was interrupted", null, e);
+      }
+    }
+
+    // Unreachable: the loop body always returns or throws.
+    throw new IllegalStateException("RetryLoop exited without returning a response or throwing");
+  }
+
+  /**
+   * Execute the given transport call, retrying as configured. No {@code onRequest} / {@code
+   * onResponse} hooks are fired (use the four-arg overload when hooks are needed).
    *
    * @param call the transport call to run; invoked up to {@code maxRetries + 1} times
    * @param label human-readable description used in exception messages (e.g. {@code "POST
@@ -174,6 +261,30 @@ public final class RetryLoop {
     }
   }
 
+  private void fireOnRequest(String method, URI url, int attemptOneBased) {
+    if (onRequest == null) {
+      return;
+    }
+    try {
+      onRequest.accept(new RequestEvent(method, url.toString(), attemptOneBased));
+    } catch (Throwable ignored) {
+      // Hook errors must never break the request — swallow.
+    }
+  }
+
+  private void fireOnResponse(HttpResponse<byte[]> response, long t0Nanos) {
+    if (onResponse == null) {
+      return;
+    }
+    String requestId = response.headers().firstValue("x-request-id").orElse(null);
+    long durationMs = (System.nanoTime() - t0Nanos) / 1_000_000L;
+    try {
+      onResponse.accept(new ResponseEvent(response.statusCode(), requestId, durationMs));
+    } catch (Throwable ignored) {
+      // Hook errors must never break the request — swallow.
+    }
+  }
+
   private static Duration cap(Duration retryAfter) {
     return retryAfter.compareTo(MAX_RETRY_AFTER) > 0 ? MAX_RETRY_AFTER : retryAfter;
   }
@@ -190,9 +301,26 @@ public final class RetryLoop {
   // ===== Async path =================================================
 
   /**
-   * Asynchronous counterpart of {@link #execute(IoCall, String)}. Uses {@link
-   * CompletableFuture#delayedExecutor(long, TimeUnit)} for inter-attempt back-off, so no worker
-   * thread is blocked while waiting.
+   * Asynchronous counterpart with {@code onRequest} / {@code onResponse} hooks fired on each
+   * attempt.
+   *
+   * @param call the async transport call
+   * @param label human-readable description used in exception messages
+   * @param method HTTP method string passed to the {@code onRequest} hook
+   * @param url fully-qualified request URL passed to the {@code onRequest} hook
+   * @return a {@code CompletableFuture} of the final response
+   */
+  public CompletableFuture<HttpResponse<byte[]>> executeAsync(
+      AsyncCall call, String label, String method, URI url) {
+    return attemptAsync(0, call, label, method, url);
+  }
+
+  /**
+   * Asynchronous counterpart of {@link #execute(IoCall, String)}. No {@code onRequest} / {@code
+   * onResponse} hooks are fired (use the four-arg overload when hooks are needed).
+   *
+   * <p>Uses {@link CompletableFuture#delayedExecutor(long, TimeUnit)} for inter-attempt back-off,
+   * so no worker thread is blocked while waiting.
    *
    * <p>The returned future:
    *
@@ -210,18 +338,28 @@ public final class RetryLoop {
    * @return a {@code CompletableFuture} of the final response
    */
   public CompletableFuture<HttpResponse<byte[]>> executeAsync(AsyncCall call, String label) {
-    return attemptAsync(0, call, label);
+    return attemptAsync(0, call, label, null, null);
   }
 
   private CompletableFuture<HttpResponse<byte[]>> attemptAsync(
-      int attempt, AsyncCall call, String label) {
+      int attempt, AsyncCall call, String label, @Nullable String method, @Nullable URI url) {
+    if (method != null && url != null) {
+      fireOnRequest(method, url, attempt + 1);
+    }
+    long t0 = System.nanoTime();
     CompletableFuture<HttpResponse<byte[]>> fut;
     try {
       fut = call.send();
     } catch (RuntimeException e) {
       return CompletableFuture.failedFuture(e);
     }
-    return fut.handle((response, error) -> processAsync(attempt, response, error, call, label))
+    return fut.handle(
+            (response, error) -> {
+              if (response != null) {
+                fireOnResponse(response, t0);
+              }
+              return processAsync(attempt, response, error, call, label, method, url);
+            })
         .thenCompose(next -> next);
   }
 
@@ -230,7 +368,9 @@ public final class RetryLoop {
       @Nullable HttpResponse<byte[]> response,
       @Nullable Throwable error,
       AsyncCall call,
-      String label) {
+      String label,
+      @Nullable String method,
+      @Nullable URI url) {
     if (error != null) {
       Throwable cause = unwrapCompletion(error);
       if (cause instanceof CancellationException ce) {
@@ -242,7 +382,7 @@ public final class RetryLoop {
         if (attempt < maxRetries) {
           Duration delay = backoff.compute(attempt, baseDelay);
           fireOnRetry(attempt, delay, null, PoliPageErrorCode.TIMEOUT);
-          return scheduleAsyncRetry(delay, attempt, call, label);
+          return scheduleAsyncRetry(delay, attempt, call, label, method, url);
         }
         PoliPageNetworkException terminal =
             new PoliPageNetworkException(
@@ -254,7 +394,7 @@ public final class RetryLoop {
         if (attempt < maxRetries) {
           Duration delay = backoff.compute(attempt, baseDelay);
           fireOnRetry(attempt, delay, null, PoliPageErrorCode.NETWORK_ERROR);
-          return scheduleAsyncRetry(delay, attempt, call, label);
+          return scheduleAsyncRetry(delay, attempt, call, label, method, url);
         }
         PoliPageNetworkException terminal =
             new PoliPageNetworkException(
@@ -271,17 +411,22 @@ public final class RetryLoop {
     if (isRetryableStatus(status) && attempt < maxRetries) {
       Duration delay = pickDelay(attempt, readRetryAfter(response));
       fireOnRetry(attempt, delay, status, reasonForStatus(status));
-      return scheduleAsyncRetry(delay, attempt, call, label);
+      return scheduleAsyncRetry(delay, attempt, call, label, method, url);
     }
     return CompletableFuture.completedFuture(response);
   }
 
   private CompletableFuture<HttpResponse<byte[]>> scheduleAsyncRetry(
-      Duration delay, int previousAttempt, AsyncCall call, String label) {
+      Duration delay,
+      int previousAttempt,
+      AsyncCall call,
+      String label,
+      @Nullable String method,
+      @Nullable URI url) {
     long ms = Math.max(0L, delay.toMillis());
     Executor delayed = CompletableFuture.delayedExecutor(ms, TimeUnit.MILLISECONDS);
     return CompletableFuture.supplyAsync(() -> (Void) null, delayed)
-        .thenCompose(__ -> attemptAsync(previousAttempt + 1, call, label));
+        .thenCompose(__ -> attemptAsync(previousAttempt + 1, call, label, method, url));
   }
 
   private static Throwable unwrapCompletion(Throwable t) {
