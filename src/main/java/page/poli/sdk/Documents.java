@@ -3,15 +3,20 @@ package page.poli.sdk;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpHeaders;
+import java.net.http.HttpTimeoutException;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import page.poli.sdk.PoliPageErrorCode;
+import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
+import page.poli.sdk.exception.PoliPageNetworkException;
 import page.poli.sdk.internal.ErrorParsing;
 import page.poli.sdk.internal.RetryLoop;
 import page.poli.sdk.internal.Transport;
@@ -123,6 +128,47 @@ public final class Documents {
     HttpResponse<byte[]> response = retry.execute(() -> transport.delete(path), "DELETE " + path);
     failIfNotSuccess(response, path);
     // Response body intentionally ignored — spec §6.4.
+  }
+
+  /**
+   * Fetch the PDF bytes from a descriptor's {@code presignedPdfUrl}. The URL has a short TTL (~15
+   * minutes); if it expired, re-fetch with {@link #get(String)} and try again.
+   *
+   * <p>The presigned download is intentionally NOT retried — the URL is single-use against S3, and
+   * an expired-signature error won't recover.
+   *
+   * @param descriptor the descriptor returned by {@link #get(String)} or {@link
+   *     page.poli.sdk.Render#document(page.poli.sdk.input.ProjectModeInput)}
+   * @return the PDF bytes
+   * @throws PoliPageDownloadException on non-2xx or transport failure
+   */
+  public byte[] downloadPdf(DocumentDescriptor descriptor) {
+    URI url = URI.create(descriptor.presignedPdfUrl());
+    HttpResponse<byte[]> response;
+    try {
+      response = transport.getPresigned(url);
+    } catch (HttpTimeoutException e) {
+      throw new PoliPageNetworkException(
+          PoliPageErrorCode.TIMEOUT, "downloadPdf timed out: " + e.getMessage(), e);
+    } catch (IOException e) {
+      throw new PoliPageDownloadException(
+          PoliPageErrorCode.DOWNLOAD_FAILED,
+          0,
+          "Failed to download PDF from presigned URL: " + e.getMessage(),
+          e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new PoliPageException(PoliPageErrorCode.ABORTED, 0, "Download was interrupted", null, e);
+    }
+    int status = response.statusCode();
+    if (status < 200 || status >= 300) {
+      throw new PoliPageDownloadException(
+          PoliPageErrorCode.DOWNLOAD_FAILED,
+          status,
+          "Failed to download PDF from presigned URL: HTTP " + status,
+          null);
+    }
+    return response.body();
   }
 
   // -- internals -----------------------------------------------------
