@@ -149,7 +149,7 @@ public final class Render {
   // -- internals -----------------------------------------------------
 
   private <T> T postAndParse(String path, Object body, Class<T> responseType) {
-    String idempotencyKey = UUID.randomUUID().toString();
+    String idempotencyKey = idempotencyKeyOf(body);
     HttpResponse<byte[]> response =
         retry.execute(() -> transport.post(path, body, idempotencyKey), "POST " + path);
 
@@ -216,6 +216,16 @@ public final class Render {
       throw new PoliPageException(
           PoliPageErrorCode.ABORTED, 0, label + " was interrupted", null, e);
     }
+  }
+
+  private static String idempotencyKeyOf(Object body) {
+    if (body instanceof ProjectModeInput p && p.idempotencyKey() != null) {
+      return p.idempotencyKey();
+    }
+    if (body instanceof page.poli.sdk.input.InlineModeInput i && i.idempotencyKey() != null) {
+      return i.idempotencyKey();
+    }
+    return UUID.randomUUID().toString();
   }
 
   private static boolean isSuccess(int statusCode) {

@@ -126,10 +126,20 @@ public final class RenderAsync {
   // -- internals -----------------------------------------------------
 
   private <T> CompletableFuture<T> postAndParseAsync(String path, Object body, Class<T> type) {
-    String idempotencyKey = UUID.randomUUID().toString();
+    String idempotencyKey = idempotencyKeyOf(body);
     return retry
         .executeAsync(() -> transport.postAsync(path, body, idempotencyKey), "POST " + path)
         .thenApply(response -> mapResponse(response, path, type));
+  }
+
+  private static String idempotencyKeyOf(Object body) {
+    if (body instanceof page.poli.sdk.input.ProjectModeInput p && p.idempotencyKey() != null) {
+      return p.idempotencyKey();
+    }
+    if (body instanceof page.poli.sdk.input.InlineModeInput i && i.idempotencyKey() != null) {
+      return i.idempotencyKey();
+    }
+    return UUID.randomUUID().toString();
   }
 
   private <T> T mapResponse(HttpResponse<byte[]> response, String path, Class<T> type) {

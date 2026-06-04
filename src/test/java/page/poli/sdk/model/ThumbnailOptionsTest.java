@@ -25,21 +25,21 @@ class ThumbnailOptionsTest {
 
   @Test
   void compact_constructor_rejects_zero_width() {
-    assertThatThrownBy(() -> new ThumbnailOptions(0, ThumbnailFormat.PNG, null, null))
+    assertThatThrownBy(() -> new ThumbnailOptions(0, ThumbnailFormat.PNG, null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("width");
   }
 
   @Test
   void compact_constructor_rejects_negative_width() {
-    assertThatThrownBy(() -> new ThumbnailOptions(-1, ThumbnailFormat.PNG, null, null))
+    assertThatThrownBy(() -> new ThumbnailOptions(-1, ThumbnailFormat.PNG, null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("width");
   }
 
   @Test
   void quality_rejected_when_format_is_PNG() {
-    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.PNG, 80, null))
+    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.PNG, 80, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("JPEG");
   }
@@ -53,10 +53,10 @@ class ThumbnailOptionsTest {
 
   @Test
   void quality_rejected_outside_1_to_100() {
-    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 0, null))
+    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 0, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("100");
-    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 101, null))
+    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 101, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("100");
   }

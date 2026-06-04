@@ -101,7 +101,8 @@ public final class Documents {
   public List<Thumbnail> thumbnails(String id, ThumbnailOptions options) {
     String path = DOCUMENTS_PATH + encode(id) + "/thumbnails";
     Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
-    String idempotencyKey = UUID.randomUUID().toString();
+    String idempotencyKey =
+        options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
     HttpResponse<byte[]> response =
         retry.execute(() -> transport.post(path, wireBody, idempotencyKey), "POST " + path);
     failIfNotSuccess(response, path);

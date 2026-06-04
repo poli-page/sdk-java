@@ -1,5 +1,6 @@
 package page.poli.sdk.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -19,13 +20,16 @@ import org.jspecify.annotations.Nullable;
  * @param quality JPEG quality 1–100; ignored / forbidden when {@link #format} is {@link
  *     ThumbnailFormat#PNG}
  * @param pages 1-based page numbers to render; {@code null} renders all pages
+ * @param idempotencyKey caller-supplied idempotency key; when set, overrides the SDK-generated UUID
+ *     sent in the {@code Idempotency-Key} request header — never serialised to the wire body
  */
 @JsonInclude(Include.NON_NULL)
 public record ThumbnailOptions(
     @JsonProperty("width") int width,
     @JsonProperty("format") ThumbnailFormat format,
     @JsonProperty("quality") @Nullable Integer quality,
-    @JsonProperty("pages") @Nullable List<Integer> pages) {
+    @JsonProperty("pages") @Nullable List<Integer> pages,
+    @JsonIgnore @Nullable String idempotencyKey) {
 
   /** Compact-constructor invariants. */
   public ThumbnailOptions {
@@ -69,6 +73,7 @@ public record ThumbnailOptions(
     private ThumbnailFormat format = ThumbnailFormat.PNG;
     private @Nullable Integer quality;
     private @Nullable List<Integer> pages;
+    private @Nullable String idempotencyKey;
 
     private Builder() {}
 
@@ -117,6 +122,19 @@ public record ThumbnailOptions(
     }
 
     /**
+     * Sets a caller-supplied idempotency key. Optional — when omitted, the SDK generates a UUID.
+     * The key is sent in the {@code Idempotency-Key} request header and is never serialised to the
+     * wire body.
+     *
+     * @param idempotencyKey the idempotency key, or {@code null} to let the SDK generate one
+     * @return this builder
+     */
+    public Builder idempotencyKey(@Nullable String idempotencyKey) {
+      this.idempotencyKey = idempotencyKey;
+      return this;
+    }
+
+    /**
      * Validates and produces an immutable {@link ThumbnailOptions}.
      *
      * @return the options record
@@ -125,7 +143,11 @@ public record ThumbnailOptions(
      */
     public ThumbnailOptions build() {
       return new ThumbnailOptions(
-          Objects.requireNonNull(width, "width is required"), format, quality, pages);
+          Objects.requireNonNull(width, "width is required"),
+          format,
+          quality,
+          pages,
+          idempotencyKey);
     }
   }
 }
