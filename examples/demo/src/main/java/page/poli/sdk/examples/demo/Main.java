@@ -10,13 +10,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import page.poli.sdk.PoliPageClient;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.input.ProjectModeInput;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.DocumentPreviewResult;
+import page.poli.sdk.model.PreviewResult;
+import page.poli.sdk.model.Thumbnail;
+import page.poli.sdk.model.ThumbnailFormat;
+import page.poli.sdk.model.ThumbnailOptions;
 
 /**
  * Walks through every public method of the Poli Page Java SDK end-to-end against the develop API.
@@ -25,7 +31,7 @@ import page.poli.sdk.model.DocumentPreviewResult;
 public final class Main {
 
   private static final String DEFAULT_BASE_URL = "https://api.poli.page";
-  private static final int TOTAL_STEPS = 6;
+  private static final int TOTAL_STEPS = 10;
   private static final ProjectModeInput INPUT =
       ProjectModeInput.builder()
           .project("getting-started")
@@ -55,9 +61,13 @@ public final class Main {
     step1RenderPdf(client);
     step2RenderPdfStream(client);
     step3RenderToFile(client);
-    DocumentDescriptor doc = step4RenderDocument(client);
-    step5DocumentsPreview(client, doc.documentId());
-    step6ErrorHandling(client);
+    step4RenderPreview(client);
+    DocumentDescriptor doc = step5RenderDocument(client);
+    step6DocumentsGet(client, doc.documentId());
+    step7DocumentsThumbnails(client, doc.documentId());
+    step8DocumentsPreview(client, doc.documentId());
+    step9DocumentsDelete(client, doc.documentId());
+    step10ErrorHandling(client);
 
     Console.println("");
     Console.println(
@@ -118,8 +128,23 @@ public final class Main {
     Console.println("  " + Console.dim("open: ") + Console.fileLink(out.toString()));
   }
 
-  private static DocumentDescriptor step4RenderDocument(PoliPageClient client) {
-    Console.step(4, TOTAL_STEPS, "render().document() — store the document, return descriptor");
+  private static void step4RenderPreview(PoliPageClient client) throws IOException {
+    Console.step(4, TOTAL_STEPS, "render().preview() — paginated HTML");
+    PreviewResult preview = client.render().preview(INPUT);
+    Path out = OUTPUT_DIR.resolve("render_preview.html");
+    Files.writeString(out, preview.html());
+    Console.println(
+        "  "
+            + Console.bold(String.valueOf(preview.totalPages()))
+            + " page(s), "
+            + preview.html().length()
+            + " chars, env="
+            + preview.environment());
+    Console.println("  " + Console.dim("open: ") + Console.fileLink(out.toString()));
+  }
+
+  private static DocumentDescriptor step5RenderDocument(PoliPageClient client) {
+    Console.step(5, TOTAL_STEPS, "render().document() — store the document, return descriptor");
     DocumentDescriptor doc = client.render().document(INPUT);
     Console.println("  " + Console.dim("documentId: ") + Console.bold(doc.documentId()));
     Console.println("  " + Console.dim("pageCount:  ") + doc.pageCount());
@@ -127,11 +152,47 @@ public final class Main {
     return doc;
   }
 
-  private static void step5DocumentsPreview(PoliPageClient client, String documentId)
+  private static void step6DocumentsGet(PoliPageClient client, String documentId) {
+    Console.step(6, TOTAL_STEPS, "documents().get(id) — refresh descriptor");
+    DocumentDescriptor fresh = client.documents().get(documentId);
+    Console.println(
+        "  " + Console.dim("refreshed presigned URL valid until: ") + fresh.expiresAt());
+  }
+
+  private static void step7DocumentsThumbnails(PoliPageClient client, String documentId)
       throws IOException {
-    Console.step(5, TOTAL_STEPS, "documents().preview(id) — stored document HTML (no engine work)");
+    Console.step(7, TOTAL_STEPS, "documents().thumbnails(id) — page images (Starter+ tier)");
+    try {
+      List<Thumbnail> thumbs =
+          client
+              .documents()
+              .thumbnails(
+                  documentId,
+                  ThumbnailOptions.builder().width(320).format(ThumbnailFormat.PNG).build());
+      Path thumbDir = OUTPUT_DIR.resolve("thumbs");
+      Files.createDirectories(thumbDir);
+      for (Thumbnail thumb : thumbs) {
+        Path out = thumbDir.resolve("page_" + thumb.page() + ".png");
+        Files.write(out, Base64.getDecoder().decode(thumb.data()));
+        Console.println(
+            "  wrote page_" + thumb.page() + ".png (" + thumb.width() + "x" + thumb.height() + ")");
+      }
+      Console.println("  " + Console.dim("open: ") + Console.fileLink(thumbDir.toString()));
+    } catch (PoliPageException e) {
+      if ("THUMBNAILS_NOT_AVAILABLE".equals(e.code())) {
+        Console.println(
+            "  " + Console.yellow("skipped") + " — " + e.code() + " (Starter+ feature, not on Free)");
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  private static void step8DocumentsPreview(PoliPageClient client, String documentId)
+      throws IOException {
+    Console.step(8, TOTAL_STEPS, "documents().preview(id) — stored document HTML (no engine work)");
     DocumentPreviewResult preview = client.documents().preview(documentId);
-    Path out = OUTPUT_DIR.resolve( "preview.html");
+    Path out = OUTPUT_DIR.resolve("documents_preview.html");
     Files.writeString(out, preview.html());
     Console.println(
         "  "
@@ -142,8 +203,14 @@ public final class Main {
     Console.println("  " + Console.dim("open: ") + Console.fileLink(out.toString()));
   }
 
-  private static void step6ErrorHandling(PoliPageClient client) {
-    Console.step(6, TOTAL_STEPS, "error handling — DEMO ONLY (we trigger an error on purpose)");
+  private static void step9DocumentsDelete(PoliPageClient client, String documentId) {
+    Console.step(9, TOTAL_STEPS, "documents().delete(id) — soft-delete");
+    client.documents().delete(documentId);
+    Console.println("  " + Console.green("✔ ") + "deleted " + documentId);
+  }
+
+  private static void step10ErrorHandling(PoliPageClient client) {
+    Console.step(10, TOTAL_STEPS, "error handling — DEMO ONLY (we trigger an error on purpose)");
     Console.println(
         Console.yellow("  ⚠  This step is intentional — the SDK is about to throw, but the"));
     Console.println(
