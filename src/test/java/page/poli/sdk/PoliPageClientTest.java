@@ -211,4 +211,26 @@ class PoliPageClientTest {
       assertThat(client.options().onRetry()).isNull();
     }
   }
+
+  @Test
+  void RequestEvent_carries_method_url_attempt() {
+    RequestEvent e = new RequestEvent("POST", "https://api.poli.page/v1/render", 1);
+    assertThat(e.method()).isEqualTo("POST");
+    assertThat(e.url()).isEqualTo("https://api.poli.page/v1/render");
+    assertThat(e.attempt()).isEqualTo(1);
+  }
+
+  @Test
+  void ResponseEvent_carries_status_requestId_durationMs() {
+    ResponseEvent e = new ResponseEvent(200, "req_abc", 42L);
+    assertThat(e.status()).isEqualTo(200);
+    assertThat(e.requestId()).isEqualTo("req_abc");
+    assertThat(e.durationMs()).isEqualTo(42L);
+  }
+
+  @Test
+  void ResponseEvent_allows_null_requestId() {
+    ResponseEvent e = new ResponseEvent(500, null, 0L);
+    assertThat(e.requestId()).isNull();
+  }
 }
