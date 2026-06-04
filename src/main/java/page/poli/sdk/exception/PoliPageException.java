@@ -108,12 +108,44 @@ public sealed class PoliPageException extends RuntimeException
   }
 
   /**
-   * Returns the canonical wire payload for framework integrations.
-   * Status surfaces the API HTTP status when known, 503 for network failures,
-   * 504 for timeouts, or {@code null} when no status applies. The
-   * {@link #statusCode()} accessor stays {@code 0} for transport failures —
-   * only the payload surfaces 503/504, so callers that read {@code statusCode()}
-   * directly are unaffected.
+   * @return {@code true} for HTTP {@code 401} or {@code 403}. Use this in cross-language wrapper
+   *     code where catching {@link PoliPageAuthException} by type isn't an option.
+   */
+  public boolean isAuthError() {
+    return statusCode == 401 || statusCode == 403;
+  }
+
+  /**
+   * @return {@code true} for HTTP {@code 429}. The SDK has already retried internally up to {@code
+   *     maxRetries} before surfacing this — back off further at the caller level if you see it.
+   */
+  public boolean isRateLimitError() {
+    return statusCode == 429;
+  }
+
+  /**
+   * @return {@code true} for HTTP {@code 400} — the request payload failed validation (missing
+   *     data, bad version, etc.). Matches sdk-node {@code error.ts:115-117}; deliberately does
+   *     <em>not</em> include 422 even though the SDK maps {@code 422} to {@link
+   *     PoliPageValidationException} — the reference contract is 400-only.
+   */
+  public boolean isValidationError() {
+    return statusCode == 400;
+  }
+
+  /**
+   * @return {@code true} for SDK-internal transport failures ({@code network_error}, {@code
+   *     timeout}). Matches sdk-node {@code error.ts:131-133}.
+   */
+  public boolean isNetworkError() {
+    return PoliPageErrorCode.NETWORK_ERROR.equals(code) || PoliPageErrorCode.TIMEOUT.equals(code);
+  }
+
+  /**
+   * Returns the canonical wire payload for framework integrations. Status surfaces the API HTTP
+   * status when known, 503 for network failures, 504 for timeouts, or {@code null} when no status
+   * applies. The {@link #statusCode()} accessor stays {@code 0} for transport failures — only the
+   * payload surfaces 503/504, so callers that read {@code statusCode()} directly are unaffected.
    *
    * @return the canonical wire payload
    */
@@ -122,9 +154,9 @@ public sealed class PoliPageException extends RuntimeException
   }
 
   /**
-   * Hook overridden by {@link PoliPageNetworkException} (503 for network errors,
-   * 504 for timeouts via the {@code code()} discriminator). Default: the API
-   * status when present, otherwise {@code null}.
+   * Hook overridden by {@link PoliPageNetworkException} (503 for network errors, 504 for timeouts
+   * via the {@code code()} discriminator). Default: the API status when present, otherwise {@code
+   * null}.
    *
    * @return the wire status surfaced by {@link #toPayload()}, or {@code null}
    */
