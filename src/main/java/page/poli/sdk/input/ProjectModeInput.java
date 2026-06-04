@@ -1,10 +1,13 @@
 package page.poli.sdk.input;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
+import page.poli.sdk.model.Orientation;
+import page.poli.sdk.model.PageFormat;
 
 /**
  * Render input that addresses a stored project / template by slug, optionally pinned to a published
@@ -32,6 +35,12 @@ import org.jspecify.annotations.Nullable;
  * @param data template data; required, may be empty but not {@code null}
  * @param metadata caller-supplied metadata echoed by preview / document responses; {@code null} to
  *     omit
+ * @param format optional page format override; {@code null} uses the template default
+ * @param orientation optional page orientation override; {@code null} uses the template default
+ * @param locale optional BCP 47 locale (e.g. {@code "en-US"}); {@code null} uses the template
+ *     default
+ * @param idempotencyKey caller-supplied idempotency key; when set, overrides the SDK-generated UUID
+ *     sent in the {@code Idempotency-Key} request header — never serialised to the wire body
  */
 @JsonInclude(Include.NON_NULL)
 public record ProjectModeInput(
@@ -39,7 +48,11 @@ public record ProjectModeInput(
     String template,
     @Nullable String version,
     Map<String, Object> data,
-    @Nullable Map<String, Object> metadata)
+    @Nullable Map<String, Object> metadata,
+    @Nullable PageFormat format,
+    @Nullable Orientation orientation,
+    @Nullable String locale,
+    @JsonIgnore @Nullable String idempotencyKey)
     implements RenderInput {
 
   /** Compact-constructor invariants — match the {@link Builder}'s validation. */
@@ -72,6 +85,10 @@ public record ProjectModeInput(
     private @Nullable String version;
     private @Nullable Map<String, Object> data;
     private @Nullable Map<String, Object> metadata;
+    private @Nullable PageFormat format;
+    private @Nullable Orientation orientation;
+    private @Nullable String locale;
+    private @Nullable String idempotencyKey;
 
     private Builder() {}
 
@@ -134,6 +151,52 @@ public record ProjectModeInput(
     }
 
     /**
+     * Sets the page format override. Optional.
+     *
+     * @param format page format, or {@code null} to use the template default
+     * @return this builder
+     */
+    public Builder format(@Nullable PageFormat format) {
+      this.format = format;
+      return this;
+    }
+
+    /**
+     * Sets the page orientation override. Optional.
+     *
+     * @param orientation page orientation, or {@code null} to use the template default
+     * @return this builder
+     */
+    public Builder orientation(@Nullable Orientation orientation) {
+      this.orientation = orientation;
+      return this;
+    }
+
+    /**
+     * Sets the BCP 47 locale (e.g. {@code "en-US"}). Optional.
+     *
+     * @param locale locale string, or {@code null} to use the template default
+     * @return this builder
+     */
+    public Builder locale(@Nullable String locale) {
+      this.locale = locale;
+      return this;
+    }
+
+    /**
+     * Sets a caller-supplied idempotency key. Optional — when omitted, the SDK generates a UUID.
+     * The key is sent in the {@code Idempotency-Key} request header and is never serialised to the
+     * wire body.
+     *
+     * @param idempotencyKey the idempotency key, or {@code null} to let the SDK generate one
+     * @return this builder
+     */
+    public Builder idempotencyKey(@Nullable String idempotencyKey) {
+      this.idempotencyKey = idempotencyKey;
+      return this;
+    }
+
+    /**
      * Validates and produces the input record.
      *
      * @return an immutable input record
@@ -146,7 +209,11 @@ public record ProjectModeInput(
           Objects.requireNonNull(template, "template is required"),
           version,
           Objects.requireNonNull(data, "data is required"),
-          metadata);
+          metadata,
+          format,
+          orientation,
+          locale,
+          idempotencyKey);
     }
   }
 }

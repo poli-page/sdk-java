@@ -35,21 +35,21 @@ class InlineModeInputTest {
 
   @Test
   void compact_constructor_rejects_null_template() {
-    assertThatThrownBy(() -> new InlineModeInput(null, Map.of(), null))
+    assertThatThrownBy(() -> new InlineModeInput(null, Map.of(), null, null, null, null, null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("template");
   }
 
   @Test
   void compact_constructor_rejects_blank_template() {
-    assertThatThrownBy(() -> new InlineModeInput("   ", Map.of(), null))
+    assertThatThrownBy(() -> new InlineModeInput("   ", Map.of(), null, null, null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("blank");
   }
 
   @Test
   void compact_constructor_rejects_null_data() {
-    assertThatThrownBy(() -> new InlineModeInput("<p/>", null, null))
+    assertThatThrownBy(() -> new InlineModeInput("<p/>", null, null, null, null, null, null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("data");
   }
