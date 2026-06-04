@@ -18,14 +18,14 @@ class PoliPageClientTest {
     @Test
     void build_throws_when_apiKey_missing() {
       assertThatThrownBy(() -> PoliPageClient.builder().build())
-          .isInstanceOf(IllegalArgumentException.class)
+          .isInstanceOf(page.poli.sdk.exception.PoliPageInvalidOptionsException.class)
           .hasMessageContaining("apiKey");
     }
 
     @Test
     void build_throws_when_apiKey_blank() {
       assertThatThrownBy(() -> PoliPageClient.builder().apiKey("   ").build())
-          .isInstanceOf(IllegalArgumentException.class)
+          .isInstanceOf(page.poli.sdk.exception.PoliPageInvalidOptionsException.class)
           .hasMessageContaining("apiKey");
     }
 

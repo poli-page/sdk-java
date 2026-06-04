@@ -36,6 +36,7 @@ public sealed class PoliPageException extends RuntimeException
     permits PoliPageAuthException,
         PoliPageDownloadException,
         PoliPageGoneException,
+        PoliPageInvalidOptionsException,
         PoliPageNetworkException,
         PoliPageNotFoundException,
         PoliPagePaymentRequiredException,

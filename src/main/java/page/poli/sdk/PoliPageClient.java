@@ -331,11 +331,12 @@ public final class PoliPageClient {
      * Validates the builder state and produces an immutable {@link PoliPageClient}.
      *
      * @return a configured, ready-to-use client
-     * @throws IllegalArgumentException if {@code apiKey} is missing or blank
+     * @throws page.poli.sdk.exception.PoliPageInvalidOptionsException if {@code apiKey} is missing
+     *     or blank
      */
     public PoliPageClient build() {
       if (apiKey == null || apiKey.isBlank()) {
-        throw new IllegalArgumentException(
+        throw new page.poli.sdk.exception.PoliPageInvalidOptionsException(
             "apiKey is required: set it via PoliPageClient.builder().apiKey(...)");
       }
       PoliPageClientOptions opts =
