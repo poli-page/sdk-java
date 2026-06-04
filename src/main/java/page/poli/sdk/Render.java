@@ -150,8 +150,10 @@ public final class Render {
 
   private <T> T postAndParse(String path, Object body, Class<T> responseType) {
     String idempotencyKey = idempotencyKeyOf(body);
+    URI fullUrl = transport.baseUrl().resolve(path);
     HttpResponse<byte[]> response =
-        retry.execute(() -> transport.post(path, body, idempotencyKey), "POST " + path);
+        retry.execute(
+            () -> transport.post(path, body, idempotencyKey), "POST " + path, "POST", fullUrl);
 
     if (!isSuccess(response.statusCode())) {
       throw ErrorParsing.toException(

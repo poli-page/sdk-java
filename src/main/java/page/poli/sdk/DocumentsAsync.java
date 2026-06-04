@@ -13,7 +13,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import org.jspecify.annotations.Nullable;
-import page.poli.sdk.PoliPageErrorCode;
 import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.internal.ErrorParsing;
@@ -51,16 +50,18 @@ public final class DocumentsAsync {
   /** Async variant of {@link Documents#get(String)}. */
   public CompletableFuture<DocumentDescriptor> get(String id) {
     String path = DOCUMENTS_PATH + encode(id);
+    URI fullUrl = transport.baseUrl().resolve(path);
     return retry
-        .executeAsync(() -> transport.getAsync(path), "GET " + path)
+        .executeAsync(() -> transport.getAsync(path), "GET " + path, "GET", fullUrl)
         .thenApply(response -> mapJson(response, path, DocumentDescriptor.class));
   }
 
   /** Async variant of {@link Documents#preview(String)}. */
   public CompletableFuture<DocumentPreviewResult> preview(String id) {
     String path = DOCUMENTS_PATH + encode(id) + "/preview";
+    URI fullUrl = transport.baseUrl().resolve(path);
     return retry
-        .executeAsync(() -> transport.getAsync(path), "GET " + path)
+        .executeAsync(() -> transport.getAsync(path), "GET " + path, "GET", fullUrl)
         .thenApply(
             response -> {
               failIfNotSuccess(response, path);
@@ -76,8 +77,13 @@ public final class DocumentsAsync {
     Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
     String idempotencyKey =
         options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
+    URI fullUrl = transport.baseUrl().resolve(path);
     return retry
-        .executeAsync(() -> transport.postAsync(path, wireBody, idempotencyKey), "POST " + path)
+        .executeAsync(
+            () -> transport.postAsync(path, wireBody, idempotencyKey),
+            "POST " + path,
+            "POST",
+            fullUrl)
         .thenApply(
             response -> {
               ThumbnailResponse wrap = mapJson(response, path, ThumbnailResponse.class);
@@ -88,8 +94,9 @@ public final class DocumentsAsync {
   /** Async variant of {@link Documents#delete(String)}. */
   public CompletableFuture<Void> delete(String id) {
     String path = DOCUMENTS_PATH + encode(id);
+    URI fullUrl = transport.baseUrl().resolve(path);
     return retry
-        .executeAsync(() -> transport.deleteAsync(path), "DELETE " + path)
+        .executeAsync(() -> transport.deleteAsync(path), "DELETE " + path, "DELETE", fullUrl)
         .thenAccept(response -> failIfNotSuccess(response, path));
   }
 

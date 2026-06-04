@@ -6,14 +6,13 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpHeaders;
-import java.net.http.HttpTimeoutException;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
-import page.poli.sdk.PoliPageErrorCode;
 import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageNetworkException;
@@ -66,7 +65,9 @@ public final class Documents {
    */
   public DocumentDescriptor get(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    HttpResponse<byte[]> response = retry.execute(() -> transport.get(path), "GET " + path);
+    URI fullUrl = transport.baseUrl().resolve(path);
+    HttpResponse<byte[]> response =
+        retry.execute(() -> transport.get(path), "GET " + path, "GET", fullUrl);
     failIfNotSuccess(response, path);
     return parseJson(response, path, DocumentDescriptor.class);
   }
@@ -84,7 +85,9 @@ public final class Documents {
    */
   public DocumentPreviewResult preview(String id) {
     String path = DOCUMENTS_PATH + encode(id) + "/preview";
-    HttpResponse<byte[]> response = retry.execute(() -> transport.get(path), "GET " + path);
+    URI fullUrl = transport.baseUrl().resolve(path);
+    HttpResponse<byte[]> response =
+        retry.execute(() -> transport.get(path), "GET " + path, "GET", fullUrl);
     failIfNotSuccess(response, path);
     String html = new String(response.body(), StandardCharsets.UTF_8);
     int pageCount = parsePageCount(header(response, PAGE_COUNT_HEADER));
@@ -108,8 +111,10 @@ public final class Documents {
     Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
     String idempotencyKey =
         options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
+    URI fullUrl = transport.baseUrl().resolve(path);
     HttpResponse<byte[]> response =
-        retry.execute(() -> transport.post(path, wireBody, idempotencyKey), "POST " + path);
+        retry.execute(
+            () -> transport.post(path, wireBody, idempotencyKey), "POST " + path, "POST", fullUrl);
     failIfNotSuccess(response, path);
     ThumbnailResponse wrap = parseJson(response, path, ThumbnailResponse.class);
     return wrap.thumbnails();
@@ -125,7 +130,9 @@ public final class Documents {
    */
   public void delete(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    HttpResponse<byte[]> response = retry.execute(() -> transport.delete(path), "DELETE " + path);
+    URI fullUrl = transport.baseUrl().resolve(path);
+    HttpResponse<byte[]> response =
+        retry.execute(() -> transport.delete(path), "DELETE " + path, "DELETE", fullUrl);
     failIfNotSuccess(response, path);
     // Response body intentionally ignored — spec §6.4.
   }
@@ -158,7 +165,8 @@ public final class Documents {
           e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new PoliPageException(PoliPageErrorCode.ABORTED, 0, "Download was interrupted", null, e);
+      throw new PoliPageException(
+          PoliPageErrorCode.ABORTED, 0, "Download was interrupted", null, e);
     }
     int status = response.statusCode();
     if (status < 200 || status >= 300) {

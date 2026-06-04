@@ -127,8 +127,10 @@ public final class RenderAsync {
 
   private <T> CompletableFuture<T> postAndParseAsync(String path, Object body, Class<T> type) {
     String idempotencyKey = idempotencyKeyOf(body);
+    URI fullUrl = transport.baseUrl().resolve(path);
     return retry
-        .executeAsync(() -> transport.postAsync(path, body, idempotencyKey), "POST " + path)
+        .executeAsync(
+            () -> transport.postAsync(path, body, idempotencyKey), "POST " + path, "POST", fullUrl)
         .thenApply(response -> mapResponse(response, path, type));
   }
 

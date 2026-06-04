@@ -12,9 +12,18 @@ class PageFormatTest {
     assertThat(PageFormat.values())
         .extracting(Enum::name)
         .containsExactly(
-            "A3", "A4", "A5", "A6",
-            "B4", "B5",
-            "Letter", "Legal", "Tabloid", "Executive", "Statement", "Folio");
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "B4",
+            "B5",
+            "Letter",
+            "Legal",
+            "Tabloid",
+            "Executive",
+            "Statement",
+            "Folio");
   }
 
   @Test

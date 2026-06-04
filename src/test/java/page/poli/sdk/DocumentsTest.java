@@ -289,6 +289,26 @@ class DocumentsTest {
           postRequestedFor(urlEqualTo(THUMB_PATH))
               .withRequestBody(equalToJson("{\"thumbnails\":{\"width\":640,\"format\":\"png\"}}")));
     }
+
+    @Test
+    void thumbnails_uses_caller_supplied_idempotency_key(WireMockRuntimeInfo wm) {
+      stubThumbnailsOk();
+
+      ThumbnailOptions opts =
+          ThumbnailOptions.builder()
+              .width(640)
+              .format(ThumbnailFormat.PNG)
+              .idempotencyKey("thumb-key-7")
+              .build();
+
+      newClient(wm).documents().thumbnails(DOC_ID, opts);
+
+      verify(
+          postRequestedFor(urlEqualTo(THUMB_PATH))
+              .withHeader(
+                  "Idempotency-Key",
+                  com.github.tomakehurst.wiremock.client.WireMock.equalTo("thumb-key-7")));
+    }
   }
 
   // =================================================================

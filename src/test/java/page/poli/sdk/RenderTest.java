@@ -179,6 +179,27 @@ class RenderTest {
   }
 
   @Test
+  void pdf_uses_caller_supplied_idempotency_key(WireMockRuntimeInfo wm) {
+    stubRenderReturnsPresigned(wm);
+    stubPresignedReturnsPdf();
+
+    ProjectModeInput input =
+        ProjectModeInput.builder()
+            .project("billing")
+            .template("invoice")
+            .version("1.0.0")
+            .data(Map.of("k", "v"))
+            .idempotencyKey("user-supplied-key-abc123")
+            .build();
+
+    newClient(wm).render().pdf(input);
+
+    verify(
+        postRequestedFor(urlEqualTo("/v1/render"))
+            .withHeader("Idempotency-Key", equalTo("user-supplied-key-abc123")));
+  }
+
+  @Test
   void pdf_body_is_exactly_project_template_version_data(WireMockRuntimeInfo wm) {
     // equalToJson is strict by default — extra fields (e.g. accidental `metadata: null`)
     // would fail the verify, so this single test also proves nothing else leaks into the body.

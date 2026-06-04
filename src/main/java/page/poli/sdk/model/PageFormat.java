@@ -5,8 +5,8 @@ package page.poli.sdk.model;
  * verbatim (Pascal-case for the named formats, ISO codes for the metric formats) — Jackson
  * serializes by {@link Enum#name()} by default, which matches the wire spec.
  *
- * <p>See {@code docs/spec/sdk-specification.md} §5.3 (canonical PageFormat list) for the full
- * table mapping each value to its physical dimensions.
+ * <p>See {@code docs/spec/sdk-specification.md} §5.3 (canonical PageFormat list) for the full table
+ * mapping each value to its physical dimensions.
  */
 public enum PageFormat {
   A3,

@@ -24,8 +24,7 @@ class OrientationTest {
   @Test
   void deserializes_from_lowercase_wire_strings() throws Exception {
     ObjectMapper mapper = new ObjectMapper();
-    assertThat(mapper.readValue("\"portrait\"", Orientation.class))
-        .isEqualTo(Orientation.PORTRAIT);
+    assertThat(mapper.readValue("\"portrait\"", Orientation.class)).isEqualTo(Orientation.PORTRAIT);
     assertThat(mapper.readValue("\"landscape\"", Orientation.class))
         .isEqualTo(Orientation.LANDSCAPE);
   }

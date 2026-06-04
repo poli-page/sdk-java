@@ -33,21 +33,33 @@ class DocumentsDownloadPdfTest {
 
   private static DocumentDescriptor descriptorWithUrl(String url) {
     return new DocumentDescriptor(
-        "doc_x", "org", null, null, null, null, null, "sandbox",
-        null, "A4", null, null, 1, 1000L, "2026-01-01T00:00:00Z", Map.of(),
-        url, "2026-01-01T00:15:00Z");
+        "doc_x",
+        "org",
+        null,
+        null,
+        null,
+        null,
+        null,
+        "sandbox",
+        null,
+        "A4",
+        null,
+        null,
+        1,
+        1000L,
+        "2026-01-01T00:00:00Z",
+        Map.of(),
+        url,
+        "2026-01-01T00:15:00Z");
   }
 
   @Test
   void downloadPdf_returns_bytes_on_2xx(WireMockRuntimeInfo wm) {
     stubFor(
-        get(urlPathEqualTo(PRESIGNED_PATH))
-            .willReturn(aResponse().withStatus(200).withBody(PDF)));
+        get(urlPathEqualTo(PRESIGNED_PATH)).willReturn(aResponse().withStatus(200).withBody(PDF)));
 
     byte[] result =
-        client(wm)
-            .documents()
-            .downloadPdf(descriptorWithUrl(wm.getHttpBaseUrl() + PRESIGNED_PATH));
+        client(wm).documents().downloadPdf(descriptorWithUrl(wm.getHttpBaseUrl() + PRESIGNED_PATH));
 
     assertThat(result).isEqualTo(PDF);
   }
