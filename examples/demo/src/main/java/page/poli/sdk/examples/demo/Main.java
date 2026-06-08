@@ -15,7 +15,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import page.poli.sdk.PoliPageClient;
+import page.poli.sdk.exception.PoliPageAuthException;
 import page.poli.sdk.exception.PoliPageException;
+import page.poli.sdk.exception.PoliPagePaymentRequiredException;
 import page.poli.sdk.input.ProjectModeInput;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.DocumentPreviewResult;
@@ -179,9 +181,22 @@ public final class Main {
       }
       Console.println("  " + Console.dim("open: ") + Console.fileLink(thumbDir.toString()));
     } catch (PoliPageException e) {
-      if ("THUMBNAILS_NOT_AVAILABLE".equals(e.code())) {
+      // Tier-gated: Free keys are rejected with 402 PAYMENT_REQUIRED or 403
+      // FORBIDDEN / THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
+      // Soft-skip any of those so the demo keeps running on Free.
+      boolean tierGated =
+          "THUMBNAILS_NOT_AVAILABLE".equals(e.code())
+              || e instanceof PoliPagePaymentRequiredException
+              || (e instanceof PoliPageAuthException && e.statusCode() == 403);
+      if (tierGated) {
         Console.println(
-            "  " + Console.yellow("skipped") + " — " + e.code() + " (Starter+ feature, not on Free)");
+            "  "
+                + Console.yellow("skipped")
+                + " — "
+                + e.code()
+                + " (HTTP "
+                + e.statusCode()
+                + ") — Starter+ tier feature");
       } else {
         throw e;
       }
