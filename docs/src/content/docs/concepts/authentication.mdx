@@ -21,33 +21,15 @@ PoliPageClient client = PoliPageClient.builder()
 
 The SDK never reads `POLI_PAGE_API_KEY` from the environment implicitly. You always pass the key in.
 
-## Custom base URL
-
-To target the develop environment (or a self-hosted gateway), override `baseUrl`:
-
-```java
-PoliPageClient client = PoliPageClient.builder()
-    .apiKey(System.getenv("POLI_PAGE_API_KEY"))
-    .baseUrl(URI.create("https://api-develop.poli.page"))
-    .build();
-```
-
-The URL must be absolute or the builder throws `IllegalArgumentException`.
-
 ## Example
 
 ```java
-import java.net.URI;
 import page.poli.sdk.PoliPageClient;
 
 class Example {
     public static void main(String[] args) {
-        String baseUrl = System.getenv().getOrDefault(
-            "POLI_PAGE_BASE_URL", "https://api.poli.page");
-
         PoliPageClient client = PoliPageClient.builder()
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
-            .baseUrl(URI.create(baseUrl))
             .build();
     }
 }

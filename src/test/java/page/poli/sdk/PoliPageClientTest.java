@@ -144,7 +144,7 @@ class PoliPageClientTest {
 
     @Test
     void all_fields_can_be_overridden() {
-      URI customBase = URI.create("https://api-develop.poli.page");
+      URI customBase = URI.create("https://api.example.com");
       PoliPageClient client =
           PoliPageClient.builder()
               .apiKey(TEST_KEY)
