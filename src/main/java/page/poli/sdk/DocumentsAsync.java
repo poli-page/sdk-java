@@ -18,6 +18,7 @@ import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.internal.ErrorParsing;
 import page.poli.sdk.internal.RetryLoop;
 import page.poli.sdk.internal.Transport;
+import page.poli.sdk.internal.Urls;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.DocumentPreviewResult;
 import page.poli.sdk.model.Thumbnail;
@@ -50,7 +51,7 @@ public final class DocumentsAsync {
   /** Async variant of {@link Documents#get(String)}. */
   public CompletableFuture<DocumentDescriptor> get(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     return retry
         .executeAsync(() -> transport.getAsync(path), "GET " + path, "GET", fullUrl)
         .thenApply(response -> mapJson(response, path, DocumentDescriptor.class));
@@ -59,7 +60,7 @@ public final class DocumentsAsync {
   /** Async variant of {@link Documents#preview(String)}. */
   public CompletableFuture<DocumentPreviewResult> preview(String id) {
     String path = DOCUMENTS_PATH + encode(id) + "/preview";
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     return retry
         .executeAsync(() -> transport.getAsync(path), "GET " + path, "GET", fullUrl)
         .thenApply(
@@ -77,7 +78,7 @@ public final class DocumentsAsync {
     Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
     String idempotencyKey =
         options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     return retry
         .executeAsync(
             () -> transport.postAsync(path, wireBody, idempotencyKey),
@@ -94,7 +95,7 @@ public final class DocumentsAsync {
   /** Async variant of {@link Documents#delete(String)}. */
   public CompletableFuture<Void> delete(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     return retry
         .executeAsync(() -> transport.deleteAsync(path), "DELETE " + path, "DELETE", fullUrl)
         .thenAccept(response -> failIfNotSuccess(response, path));

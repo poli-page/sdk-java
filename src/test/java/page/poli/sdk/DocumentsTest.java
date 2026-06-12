@@ -363,4 +363,50 @@ class DocumentsTest {
           .isInstanceOf(PoliPageNotFoundException.class);
     }
   }
+
+  // =================================================================
+  // baseUrl with a path prefix
+  // =================================================================
+
+  @Nested
+  class BaseUrlWithPathPrefix {
+
+    // Why: URI.resolve("/v1/...") against a base whose path is "/prefix" follows
+    // RFC 3986 and replaces the path entirely, dropping the prefix. Real users
+    // hit this when the SDK is pointed at a gateway that namespaces routes.
+    private static final String PREFIX = "/gw/tenant-a";
+    private static final String PREFIXED_DOC_PATH = PREFIX + DOC_PATH;
+
+    private PoliPageClient prefixedClient(WireMockRuntimeInfo wm) {
+      return PoliPageClient.builder()
+          .apiKey(TEST_KEY)
+          .baseUrl(URI.create(wm.getHttpBaseUrl() + PREFIX))
+          .maxRetries(0)
+          .build();
+    }
+
+    @Test
+    void get_preserves_path_prefix(WireMockRuntimeInfo wm) {
+      stubFor(
+          get(urlEqualTo(PREFIXED_DOC_PATH))
+              .willReturn(
+                  aResponse()
+                      .withStatus(200)
+                      .withHeader("Content-Type", "application/json")
+                      .withBody(DOC_JSON)));
+
+      prefixedClient(wm).documents().get(DOC_ID);
+
+      verify(getRequestedFor(urlEqualTo(PREFIXED_DOC_PATH)));
+    }
+
+    @Test
+    void delete_preserves_path_prefix(WireMockRuntimeInfo wm) {
+      stubFor(delete(urlEqualTo(PREFIXED_DOC_PATH)).willReturn(aResponse().withStatus(204)));
+
+      prefixedClient(wm).documents().delete(DOC_ID);
+
+      verify(deleteRequestedFor(urlEqualTo(PREFIXED_DOC_PATH)));
+    }
+  }
 }

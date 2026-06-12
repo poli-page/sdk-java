@@ -115,7 +115,7 @@ public final class HttpTransport implements Transport {
 
   private HttpRequest postRequest(String path, Object body, String idempotencyKey) {
     byte[] payload = serialize(body);
-    return HttpRequest.newBuilder(baseUrl.resolve(path))
+    return HttpRequest.newBuilder(Urls.join(baseUrl, path))
         .timeout(requestTimeout)
         .header("Authorization", "Bearer " + apiKey)
         .header("Accept", "application/json")
@@ -127,7 +127,7 @@ public final class HttpTransport implements Transport {
   }
 
   private HttpRequest.Builder baselessRequest(String path) {
-    return HttpRequest.newBuilder(baseUrl.resolve(path))
+    return HttpRequest.newBuilder(Urls.join(baseUrl, path))
         .timeout(requestTimeout)
         .header("Authorization", "Bearer " + apiKey)
         .header("Accept", "application/json")

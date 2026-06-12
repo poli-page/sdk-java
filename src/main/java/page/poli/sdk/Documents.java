@@ -19,6 +19,7 @@ import page.poli.sdk.exception.PoliPageNetworkException;
 import page.poli.sdk.internal.ErrorParsing;
 import page.poli.sdk.internal.RetryLoop;
 import page.poli.sdk.internal.Transport;
+import page.poli.sdk.internal.Urls;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.DocumentPreviewResult;
 import page.poli.sdk.model.Thumbnail;
@@ -65,7 +66,7 @@ public final class Documents {
    */
   public DocumentDescriptor get(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     HttpResponse<byte[]> response =
         retry.execute(() -> transport.get(path), "GET " + path, "GET", fullUrl);
     failIfNotSuccess(response, path);
@@ -85,7 +86,7 @@ public final class Documents {
    */
   public DocumentPreviewResult preview(String id) {
     String path = DOCUMENTS_PATH + encode(id) + "/preview";
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     HttpResponse<byte[]> response =
         retry.execute(() -> transport.get(path), "GET " + path, "GET", fullUrl);
     failIfNotSuccess(response, path);
@@ -111,7 +112,7 @@ public final class Documents {
     Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
     String idempotencyKey =
         options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     HttpResponse<byte[]> response =
         retry.execute(
             () -> transport.post(path, wireBody, idempotencyKey), "POST " + path, "POST", fullUrl);
@@ -130,7 +131,7 @@ public final class Documents {
    */
   public void delete(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     HttpResponse<byte[]> response =
         retry.execute(() -> transport.delete(path), "DELETE " + path, "DELETE", fullUrl);
     failIfNotSuccess(response, path);

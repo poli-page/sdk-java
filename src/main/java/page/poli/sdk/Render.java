@@ -17,6 +17,7 @@ import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.internal.ErrorParsing;
 import page.poli.sdk.internal.RetryLoop;
 import page.poli.sdk.internal.Transport;
+import page.poli.sdk.internal.Urls;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.PreviewResult;
 
@@ -150,7 +151,7 @@ public final class Render {
 
   private <T> T postAndParse(String path, Object body, Class<T> responseType) {
     String idempotencyKey = idempotencyKeyOf(body);
-    URI fullUrl = transport.baseUrl().resolve(path);
+    URI fullUrl = Urls.join(transport.baseUrl(), path);
     HttpResponse<byte[]> response =
         retry.execute(
             () -> transport.post(path, body, idempotencyKey), "POST " + path, "POST", fullUrl);
