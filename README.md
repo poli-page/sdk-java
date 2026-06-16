@@ -2,6 +2,7 @@
 
 [![Maven Central](https://img.shields.io/maven-central/v/page.poli/sdk.svg)](https://central.sonatype.com/artifact/page.poli/sdk)
 [![Javadoc](https://javadoc.io/badge2/page.poli/sdk/javadoc.svg)](https://javadoc.io/doc/page.poli/sdk)
+[![docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://poli-page.github.io/sdk-java/)
 [![CI](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml/badge.svg)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml/badge.svg)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/poli-page/sdk-java/branch/main/graph/badge.svg)](https://codecov.io/gh/poli-page/sdk-java)
