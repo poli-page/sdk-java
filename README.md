@@ -6,6 +6,7 @@
 [![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-java?style=flat&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-java)
 [![Java](https://img.shields.io/badge/Java-17%2B-blue?style=flat&logo=openjdk&logoColor=ffffff)](https://adoptium.net/)
 [![Javadoc](https://img.shields.io/badge/Javadoc-online-blue?style=flat&logo=openjdk&logoColor=ffffff)](https://javadoc.io/doc/page.poli/sdk)
+[![Deps](https://img.shields.io/badge/Deps-up%20to%20date-brightgreen?style=flat&logo=openjdk&logoColor=ffffff)](https://github.com/poli-page/sdk-java/network/dependencies)
 [![Docs](https://img.shields.io/badge/Docs-online-brightgreen?style=flat&logo=readthedocs&logoColor=ffffff)](https://poli-page.github.io/sdk-java/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat&logo=gnu&logoColor=ffffff)](LICENSE)
 
