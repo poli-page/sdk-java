@@ -1,13 +1,13 @@
 # Poli Page SDK for Java
 
-[![Maven](https://img.shields.io/maven-central/v/page.poli/sdk?style=flat&labelColor=334155&logo=openjdk&logoColor=ffffff&label=Maven)](https://central.sonatype.com/artifact/page.poli/sdk)
-[![Ci](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/ci.yml?branch=main&style=flat&labelColor=334155&logo=githubactions&logoColor=ffffff&label=Ci)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
-[![Codeql](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/codeql.yml?branch=main&style=flat&labelColor=334155&logo=github&logoColor=ffffff&label=Codeql)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
-[![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-java?style=flat&labelColor=334155&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-java)
-[![Java](https://img.shields.io/badge/Java-17%2B-blue?style=flat&labelColor=334155&logo=openjdk&logoColor=ffffff)](https://adoptium.net/)
-[![Javadoc](https://img.shields.io/badge/Javadoc-online-blue?style=flat&labelColor=334155&logo=openjdk&logoColor=ffffff)](https://javadoc.io/doc/page.poli/sdk)
-[![Docs](https://img.shields.io/badge/Docs-online-brightgreen?style=flat&labelColor=334155&logo=readthedocs&logoColor=ffffff)](https://poli-page.github.io/sdk-java/)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=flat&labelColor=334155&logo=gnu&logoColor=ffffff)](LICENSE)
+[![Maven](https://img.shields.io/maven-central/v/page.poli/sdk?style=flat&logo=openjdk&logoColor=ffffff&label=Maven)](https://central.sonatype.com/artifact/page.poli/sdk)
+[![Ci](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/ci.yml?branch=main&style=flat&logo=githubactions&logoColor=ffffff&label=Ci)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
+[![Codeql](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/codeql.yml?branch=main&style=flat&logo=github&logoColor=ffffff&label=Codeql)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-java?style=flat&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-java)
+[![Java](https://img.shields.io/badge/Java-17%2B-blue?style=flat&logo=openjdk&logoColor=ffffff)](https://adoptium.net/)
+[![Javadoc](https://img.shields.io/badge/Javadoc-online-blue?style=flat&logo=openjdk&logoColor=ffffff)](https://javadoc.io/doc/page.poli/sdk)
+[![Docs](https://img.shields.io/badge/Docs-online-brightgreen?style=flat&logo=readthedocs&logoColor=ffffff)](https://poli-page.github.io/sdk-java/)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat&logo=gnu&logoColor=ffffff)](LICENSE)
 
 Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 
