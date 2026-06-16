@@ -82,6 +82,18 @@ jobs:
         if: steps.state.outputs.has_pom == 'true' && steps.state.outputs.has_tests == 'true'
         run: ./mvnw -B verify
 
+      # JaCoCo XML lives at target/site/jacoco/jacoco.xml after `mvn verify`.
+      # Only upload once (Ubuntu+Java 21). Requires the CODECOV_TOKEN secret
+      # while the repo is private; the upload step is set to never fail CI
+      # so missing-token / Codecov outages don't block the build.
+      - name: Upload coverage to Codecov
+        if: steps.state.outputs.has_pom == 'true' && steps.state.outputs.has_tests == 'true' && matrix.os == 'ubuntu-latest' && matrix.java == '21'
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        with:
+          files: target/site/jacoco/jacoco.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
       - name: Package only (no tests in src/test/java yet)
         if: steps.state.outputs.has_pom == 'true' && steps.state.outputs.has_tests == 'false'
         run: ./mvnw -B package -DskipTests

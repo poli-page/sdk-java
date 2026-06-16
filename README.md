@@ -1,9 +1,12 @@
 # Poli Page SDK for Java
 
 [![Maven Central](https://img.shields.io/maven-central/v/page.poli/sdk.svg)](https://central.sonatype.com/artifact/page.poli/sdk)
-[![CI](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml/badge.svg)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
 [![Javadoc](https://javadoc.io/badge2/page.poli/sdk/javadoc.svg)](https://javadoc.io/doc/page.poli/sdk)
-[![License](https://img.shields.io/github/license/poli-page/sdk-java)](LICENSE)
+[![CI](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml/badge.svg)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml/badge.svg)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/poli-page/sdk-java/branch/main/graph/badge.svg)](https://codecov.io/gh/poli-page/sdk-java)
+[![Java 17+](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://adoptium.net/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 
