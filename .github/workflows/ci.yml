@@ -7,6 +7,10 @@ on:
 
 permissions:
   contents: read
+  # Required by codecov-action's use_oidc: true so it can mint a short-lived
+  # OIDC token. Codecov rejects unauthenticated uploads on the default
+  # (protected) branch, and we don't keep a CODECOV_TOKEN secret.
+  id-token: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -83,14 +87,17 @@ jobs:
         run: ./mvnw -B verify
 
       # JaCoCo XML lives at target/site/jacoco/jacoco.xml after `mvn verify`.
-      # Only upload once (Ubuntu+Java 21). Public-repo tokenless upload via
-      # codecov-action v5; no CODECOV_TOKEN secret required. fail_ci_if_error
-      # is false so Codecov outages or rate-limits never block the build.
+      # Only upload once (Ubuntu+Java 21). use_oidc: true is mandatory:
+      # Codecov rejects tokenless uploads on the default (protected) branch,
+      # and we've granted id-token: write at the workflow level. No
+      # CODECOV_TOKEN secret needed. fail_ci_if_error stays false so a
+      # Codecov outage or rate-limit never blocks the build.
       - name: Upload coverage to Codecov
         if: steps.state.outputs.has_pom == 'true' && steps.state.outputs.has_tests == 'true' && matrix.os == 'ubuntu-latest' && matrix.java == '21'
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           files: target/site/jacoco/jacoco.xml
+          use_oidc: true
           fail_ci_if_error: false
 
       - name: Package only (no tests in src/test/java yet)
