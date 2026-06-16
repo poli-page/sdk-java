@@ -182,14 +182,13 @@
             </sortPom>
           </pom>
         </configuration>
-        <executions>
-          <execution>
-            <goals>
-              <goal>check</goal>
-            </goals>
-            <phase>verify</phase>
-          </execution>
-        </executions>
+        <!--
+          No <executions> binding on purpose. google-java-format 1.35.0 needs
+          JDK 21+ to run, so binding `check` to `verify` would break `mvnw verify`
+          on JDK 17 and on Java versions whose javac internals it doesn't know.
+          CI runs `mvnw spotless:check` explicitly on the Java 21 matrix slot;
+          locally, run `mvnw spotless:apply` or `mvnw spotless:check` directly.
+        -->
       </plugin>
 
       <plugin>

@@ -53,12 +53,18 @@ jobs:
         with:
           path: docs/dist
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+  # Deploy is disabled while the repo is private — the org's plan does not
+  # support GitHub Pages on private repos (POST /repos/.../pages returns 422
+  # "Your current plan does not support GitHub Pages for this repository").
+  # Build still runs so docs breakage is caught at PR time. Uncomment once the
+  # repo is public (or a Pages-eligible plan is in place).
+  #
+  # deploy:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #   steps:
+  #     - id: deployment
+  #       uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
