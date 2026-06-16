@@ -1,9 +1,9 @@
 # Poli Page SDK for Java
 
 [![Maven](https://img.shields.io/maven-central/v/page.poli/sdk?style=flat&labelColor=334155&logo=openjdk&logoColor=ffffff&label=Maven&color=0ea5e9)](https://central.sonatype.com/artifact/page.poli/sdk)
-[![Ci](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/ci.yml?branch=main&style=flat&labelColor=334155&logo=githubactions&logoColor=ffffff&label=Ci)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
-[![Codeql](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/codeql.yml?branch=main&style=flat&labelColor=334155&logo=github&logoColor=ffffff&label=Codeql)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
-[![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-java?style=flat&labelColor=334155&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-java)
+[![Ci](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/ci.yml?branch=main&style=flat&labelColor=334155&logo=githubactions&logoColor=ffffff&label=Ci&color=059669)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
+[![Codeql](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/codeql.yml?branch=main&style=flat&labelColor=334155&logo=github&logoColor=ffffff&label=Codeql&color=059669)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-java?style=flat&labelColor=334155&logo=codecov&logoColor=ffffff&label=Coverage&color=059669)](https://codecov.io/gh/poli-page/sdk-java)
 [![Java](https://img.shields.io/badge/Java-17%2B-0ea5e9?style=flat&labelColor=334155&logo=openjdk&logoColor=ffffff)](https://adoptium.net/)
 [![Javadoc](https://img.shields.io/badge/Javadoc-online-0ea5e9?style=flat&labelColor=334155&logo=openjdk&logoColor=ffffff)](https://javadoc.io/doc/page.poli/sdk)
 [![Docs](https://img.shields.io/badge/Docs-online-059669?style=flat&labelColor=334155&logo=readthedocs&logoColor=ffffff)](https://poli-page.github.io/sdk-java/)
