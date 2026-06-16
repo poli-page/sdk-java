@@ -45,7 +45,12 @@ jobs:
             echo "No pom.xml yet — CodeQL has nothing to analyze."
           fi
 
+      # SARIF upload requires GitHub Advanced Security, which is not enabled on
+      # this private repo. continue-on-error keeps the workflow green so the
+      # analysis still runs (results visible in the step log); flip back to a
+      # hard failure once the repo is public or AS is licensed.
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
+        continue-on-error: true
         with:
           category: "/language:java"

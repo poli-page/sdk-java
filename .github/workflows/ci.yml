@@ -59,12 +59,15 @@ jobs:
             echo "has_tests=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Spotless is a formatting check, not a per-JDK check — run once on the
+      # Ubuntu+Java 21 slot. google-java-format requires JDK 21+ to run, and
+      # newer JDKs change javac internals it depends on.
       - name: Spotless check
-        if: steps.state.outputs.has_spotless == 'true'
+        if: steps.state.outputs.has_spotless == 'true' && matrix.os == 'ubuntu-latest' && matrix.java == '21'
         run: ./mvnw -B spotless:check
 
       - name: No spotless config yet — skipping
-        if: steps.state.outputs.has_spotless == 'false'
+        if: steps.state.outputs.has_spotless == 'false' && matrix.os == 'ubuntu-latest' && matrix.java == '21'
         run: echo "Add spotless-maven-plugin to pom.xml to enable formatting checks."
 
       - name: Compile
