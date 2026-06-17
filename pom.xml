@@ -59,7 +59,7 @@
 
     <!-- Dependency versions -->
     <slf4j.version>2.0.18</slf4j.version>
-    <jackson.version>2.17.2</jackson.version>
+    <jackson.version>2.22.0</jackson.version>
     <jspecify.version>1.0.0</jspecify.version>
 
     <!-- Test dependency versions -->

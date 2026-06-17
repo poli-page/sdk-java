@@ -1,5 +1,6 @@
 package page.poli.sdk;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -176,7 +177,7 @@ public final class PoliPageClient {
   private static ObjectMapper newObjectMapper() {
     return JsonMapper.builder()
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        .serializationInclusion(Include.NON_NULL)
+        .defaultPropertyInclusion(JsonInclude.Value.empty().withValueInclusion(Include.NON_NULL))
         .build();
   }
 
