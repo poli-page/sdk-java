@@ -60,7 +60,7 @@ reviews:
         in sync.
     - path: "src/main/java/page/poli/sdk/exception/**"
       instructions: >-
-        Errors must be built from the API error shape { error: { code } } and map to the
+        Errors must be built from the API error shape { error: CODE_STRING, detail?, issues? } (flat, API spec §4.1) and map to the
         matching PoliPage*Exception and PoliPageErrorCode. Never leak the API key in messages.
     - path: "src/main/java/page/poli/sdk/internal/**"
       instructions: >-
