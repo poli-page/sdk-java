@@ -58,7 +58,7 @@
     <maven.compiler.release>17</maven.compiler.release>
 
     <!-- Dependency versions -->
-    <slf4j.version>2.0.19</slf4j.version>
+    <slf4j.version>2.0.20</slf4j.version>
     <jackson.version>2.22.3</jackson.version>
     <jspecify.version>1.0.1</jspecify.version>
 
@@ -75,11 +75,11 @@
     <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
     <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
     <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
-    <spotless-maven-plugin.version>3.10.2</spotless-maven-plugin.version>
+    <spotless-maven-plugin.version>3.10.4</spotless-maven-plugin.version>
     <google-java-format.version>1.35.0</google-java-format.version>
     <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
-    <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
-    <japicmp-maven-plugin.version>0.26.2</japicmp-maven-plugin.version>
+    <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
+    <japicmp-maven-plugin.version>0.26.3</japicmp-maven-plugin.version>
   </properties>
 
   <dependencies>
