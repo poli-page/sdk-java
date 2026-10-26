@@ -39,7 +39,6 @@ public sealed class PoliPageException extends RuntimeException
         PoliPageInvalidOptionsException,
         PoliPageNetworkException,
         PoliPageNotFoundException,
-        PoliPagePaymentRequiredException,
         PoliPageRateLimitException,
         PoliPageValidationException {
 
@@ -126,7 +125,7 @@ public sealed class PoliPageException extends RuntimeException
 
   /**
    * @return {@code true} for HTTP {@code 400} — the request payload failed validation (missing
-   *     data, bad version, etc.). Matches sdk-node {@code error.ts:115-117}; deliberately does
+   *     data, unknown field, etc.). Matches sdk-node {@code error.ts:115-117}; deliberately does
    *     <em>not</em> include 422 even though the SDK maps {@code 422} to {@link
    *     PoliPageValidationException} — the reference contract is 400-only.
    */

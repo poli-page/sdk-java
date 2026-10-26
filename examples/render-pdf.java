@@ -1,7 +1,7 @@
-// Demonstrates: client.render().pdf(input) — project mode only.
+// Demonstrates: client.render().pdf(input).
 import java.util.Map;
 import page.poli.sdk.PoliPageClient;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 
 class Example {
     public static void main(String[] args) {
@@ -9,7 +9,7 @@ class Example {
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
             .build();
 
-        ProjectModeInput input = ProjectModeInput.builder()
+        RenderInput input = RenderInput.builder()
             .project("billing")
             .template("invoice")
             .data(Map.of("invoiceNumber", "INV-001", "total", 1280))

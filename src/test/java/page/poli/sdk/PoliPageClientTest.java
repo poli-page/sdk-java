@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class PoliPageClientTest {
 
-  private static final String TEST_KEY = "pp_test_xxx";
+  private static final String TEST_KEY = "pp_sandbox_xxx";
 
   @Nested
   class BuilderValidation {
@@ -138,8 +138,8 @@ class PoliPageClientTest {
 
     @Test
     void apiKey_is_preserved() {
-      PoliPageClient client = PoliPageClient.builder().apiKey("pp_test_secret_value").build();
-      assertThat(client.options().apiKey()).isEqualTo("pp_test_secret_value");
+      PoliPageClient client = PoliPageClient.builder().apiKey("pp_sandbox_secret_value").build();
+      assertThat(client.options().apiKey()).isEqualTo("pp_sandbox_secret_value");
     }
 
     @Test

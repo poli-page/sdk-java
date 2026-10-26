@@ -12,14 +12,12 @@ import org.jspecify.annotations.Nullable;
 import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageNetworkException;
-import page.poli.sdk.input.ProjectModeInput;
 import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.internal.ErrorParsing;
 import page.poli.sdk.internal.RetryLoop;
 import page.poli.sdk.internal.Transport;
 import page.poli.sdk.internal.Urls;
 import page.poli.sdk.model.DocumentDescriptor;
-import page.poli.sdk.model.PreviewResult;
 
 /**
  * Blocking render facade. Obtain via {@link PoliPageClient#render()}.
@@ -27,20 +25,18 @@ import page.poli.sdk.model.PreviewResult;
  * <p>Phase 5 ships the full surface:
  *
  * <ul>
- *   <li>{@link #pdf(ProjectModeInput)} — render and return bytes (two HTTP hops)
- *   <li>{@link #pdfStream(ProjectModeInput)} — same but return an {@link InputStream} so large PDFs
+ *   <li>{@link #pdf(RenderInput)} — render and return bytes (two HTTP hops)
+ *   <li>{@link #pdfStream(RenderInput)} — same but return an {@link InputStream} so large PDFs
  *       don't have to fit in memory; <strong>caller must close the stream</strong>
- *   <li>{@link #preview(RenderInput)} — render an HTML preview without storing a document
- *   <li>{@link #document(ProjectModeInput)} — render, store, return the descriptor (skip download)
+ *   <li>{@link #document(RenderInput)} — render, store, return the descriptor (skip download)
  * </ul>
  *
- * <p>The {@code /v1/render} and {@code /v1/render/preview} POSTs are retried per the client's
- * policy; the presigned-URL download is not (per {@code sdk-java-plan.md} §3.4).
+ * <p>The {@code /v1/render} POST is retried per the client's policy; the presigned-URL download is
+ * not (per {@code sdk-java-plan.md} §3.4).
  */
 public final class Render {
 
   private static final String RENDER_PATH = "/v1/render";
-  private static final String PREVIEW_PATH = "/v1/render/preview";
   private static final String REQUEST_ID_HEADER = "x-request-id";
   private static final String RETRY_AFTER_HEADER = "retry-after";
 
@@ -57,14 +53,14 @@ public final class Render {
   /**
    * Render the given input as a PDF and return the raw bytes.
    *
-   * <p>Convenience over {@link #document(ProjectModeInput)} + the presigned download. For large
-   * PDFs, prefer {@link #pdfStream(ProjectModeInput)} to avoid buffering the whole payload.
+   * <p>Convenience over {@link #document(RenderInput)} + the presigned download. For large PDFs,
+   * prefer {@link #pdfStream(RenderInput)} to avoid buffering the whole payload.
    *
    * @param input the render input — non-null
    * @return the PDF bytes
    * @throws PoliPageException on any non-2xx response after retries, or transport failure
    */
-  public byte[] pdf(ProjectModeInput input) {
+  public byte[] pdf(RenderInput input) {
     DocumentDescriptor descriptor = document(input);
     HttpResponse<byte[]> response =
         sendOnce(
@@ -98,7 +94,7 @@ public final class Render {
    * @return an {@link InputStream} reading the PDF body — caller must close
    * @throws PoliPageException on any non-2xx response after retries, or transport failure
    */
-  public InputStream pdfStream(ProjectModeInput input) {
+  public InputStream pdfStream(RenderInput input) {
     DocumentDescriptor descriptor = document(input);
     HttpResponse<InputStream> response =
         sendOnceStream(
@@ -129,27 +125,13 @@ public final class Render {
    * @return the descriptor
    * @throws PoliPageException on any non-2xx response after retries, or transport failure
    */
-  public DocumentDescriptor document(ProjectModeInput input) {
+  public DocumentDescriptor document(RenderInput input) {
     return postAndParse(RENDER_PATH, input, DocumentDescriptor.class);
-  }
-
-  /**
-   * Render the given input as an HTML preview without producing a stored document.
-   *
-   * <p>Accepts either {@link ProjectModeInput} or {@link page.poli.sdk.input.InlineModeInput} via
-   * the sealed {@link RenderInput} supertype.
-   *
-   * @param input the render input — non-null
-   * @return the parsed preview result
-   * @throws PoliPageException on any non-2xx response after retries, or transport failure
-   */
-  public PreviewResult preview(RenderInput input) {
-    return postAndParse(PREVIEW_PATH, input, PreviewResult.class);
   }
 
   // -- internals -----------------------------------------------------
 
-  private <T> T postAndParse(String path, Object body, Class<T> responseType) {
+  private <T> T postAndParse(String path, RenderInput body, Class<T> responseType) {
     String idempotencyKey = idempotencyKeyOf(body);
     URI fullUrl = Urls.join(transport.baseUrl(), path);
     HttpResponse<byte[]> response =
@@ -221,14 +203,9 @@ public final class Render {
     }
   }
 
-  private static String idempotencyKeyOf(Object body) {
-    if (body instanceof ProjectModeInput p && p.idempotencyKey() != null) {
-      return p.idempotencyKey();
-    }
-    if (body instanceof page.poli.sdk.input.InlineModeInput i && i.idempotencyKey() != null) {
-      return i.idempotencyKey();
-    }
-    return UUID.randomUUID().toString();
+  private static String idempotencyKeyOf(RenderInput body) {
+    String key = body.idempotencyKey();
+    return key != null ? key : UUID.randomUUID().toString();
   }
 
   private static boolean isSuccess(int statusCode) {

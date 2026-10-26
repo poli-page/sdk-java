@@ -31,7 +31,7 @@ import page.poli.sdk.model.ThumbnailOptions;
 @WireMockTest
 class DocumentsTest {
 
-  private static final String TEST_KEY = "pp_test_secret";
+  private static final String TEST_KEY = "pp_sandbox_secret";
   private static final String DOC_ID = "doc_abc123";
   private static final String DOC_PATH = "/v1/documents/" + DOC_ID;
 
@@ -115,10 +115,41 @@ class DocumentsTest {
                   aResponse()
                       .withStatus(404)
                       .withHeader("Content-Type", "application/json")
-                      .withBody("{\"code\":\"DOCUMENT_NOT_FOUND\",\"message\":\"x\"}")));
+                      .withBody("{\"error\":\"DOCUMENT_NOT_FOUND\",\"detail\":\"x\"}")));
 
       assertThatThrownBy(() -> newClient(wm).documents().get(DOC_ID))
           .isInstanceOf(PoliPageNotFoundException.class);
+    }
+
+    @Test
+    void get_410_document_gone_throws_PoliPageGoneException(WireMockRuntimeInfo wm) {
+      stubFor(
+          get(urlEqualTo(DOC_PATH))
+              .willReturn(
+                  aResponse()
+                      .withStatus(410)
+                      .withHeader("Content-Type", "application/json")
+                      .withBody("{\"error\":\"DOCUMENT_GONE\",\"detail\":\"deleted\"}")));
+
+      assertThatThrownBy(() -> newClient(wm).documents().get(DOC_ID))
+          .isInstanceOf(PoliPageGoneException.class)
+          .satisfies(
+              t ->
+                  assertThat(((PoliPageGoneException) t).code())
+                      .isEqualTo(PoliPageErrorCode.DOCUMENT_GONE));
+    }
+
+    @Test
+    void get_decodes_any_environment_name(WireMockRuntimeInfo wm) {
+      stubFor(
+          get(urlEqualTo(DOC_PATH))
+              .willReturn(
+                  aResponse()
+                      .withStatus(200)
+                      .withHeader("Content-Type", "application/json")
+                      .withBody(DOC_JSON.replace("\"sandbox\"", "\"staging\""))));
+
+      assertThat(newClient(wm).documents().get(DOC_ID).environment()).isEqualTo("staging");
     }
 
     @Test
@@ -205,7 +236,7 @@ class DocumentsTest {
                   aResponse()
                       .withStatus(404)
                       .withHeader("Content-Type", "application/json")
-                      .withBody("{\"code\":\"DOCUMENT_NOT_FOUND\",\"message\":\"x\"}")));
+                      .withBody("{\"error\":\"DOCUMENT_NOT_FOUND\",\"detail\":\"x\"}")));
 
       assertThatThrownBy(() -> newClient(wm).documents().preview(DOC_ID))
           .isInstanceOf(PoliPageNotFoundException.class);
@@ -280,14 +311,85 @@ class DocumentsTest {
     }
 
     @Test
-    void thumbnails_png_omits_quality_and_pages_when_unset(WireMockRuntimeInfo wm) {
+    void thumbnails_sends_only_the_set_options(WireMockRuntimeInfo wm) {
       stubThumbnailsOk();
 
       newClient(wm).documents().thumbnails(DOC_ID, ThumbnailOptions.builder().width(640).build());
 
       verify(
           postRequestedFor(urlEqualTo(THUMB_PATH))
-              .withRequestBody(equalToJson("{\"thumbnails\":{\"width\":640,\"format\":\"png\"}}")));
+              .withRequestBody(equalToJson("{\"thumbnails\":{\"width\":640}}")));
+    }
+
+    @Test
+    void thumbnails_sends_each_option_on_its_own(WireMockRuntimeInfo wm) {
+      stubThumbnailsOk();
+      Documents documents = newClient(wm).documents();
+
+      documents.thumbnails(DOC_ID, ThumbnailOptions.builder().quality(70).build());
+      documents.thumbnails(DOC_ID, ThumbnailOptions.builder().pages(List.of(2)).build());
+
+      verify(
+          postRequestedFor(urlEqualTo(THUMB_PATH))
+              .withRequestBody(equalToJson("{\"thumbnails\":{\"quality\":70}}")));
+      verify(
+          postRequestedFor(urlEqualTo(THUMB_PATH))
+              .withRequestBody(equalToJson("{\"thumbnails\":{\"pages\":[2]}}")));
+    }
+
+    @Test
+    void thumbnails_without_options_sends_empty_object(WireMockRuntimeInfo wm) {
+      stubThumbnailsOk();
+
+      List<Thumbnail> result = newClient(wm).documents().thumbnails(DOC_ID);
+
+      assertThat(result).hasSize(2);
+      verify(postRequestedFor(urlEqualTo(THUMB_PATH)).withRequestBody(equalToJson("{}")));
+    }
+
+    @Test
+    void thumbnails_with_no_option_set_sends_empty_object(WireMockRuntimeInfo wm) {
+      stubThumbnailsOk();
+
+      newClient(wm).documents().thumbnails(DOC_ID, ThumbnailOptions.builder().build());
+
+      verify(postRequestedFor(urlEqualTo(THUMB_PATH)).withRequestBody(equalToJson("{}")));
+    }
+
+    @Test
+    void thumbnails_accepts_webp(WireMockRuntimeInfo wm) {
+      stubThumbnailsOk();
+
+      newClient(wm)
+          .documents()
+          .thumbnails(DOC_ID, ThumbnailOptions.builder().format(ThumbnailFormat.WEBP).build());
+
+      verify(
+          postRequestedFor(urlEqualTo(THUMB_PATH))
+              .withRequestBody(equalToJson("{\"thumbnails\":{\"format\":\"webp\"}}")));
+    }
+
+    @Test
+    void thumbnails_sends_out_of_range_options_unchecked(WireMockRuntimeInfo wm) {
+      stubThumbnailsOk();
+
+      newClient(wm)
+          .documents()
+          .thumbnails(
+              DOC_ID,
+              ThumbnailOptions.builder()
+                  .width(10)
+                  .format(ThumbnailFormat.PNG)
+                  .quality(500)
+                  .pages(List.of(0))
+                  .build());
+
+      verify(
+          postRequestedFor(urlEqualTo(THUMB_PATH))
+              .withRequestBody(
+                  equalToJson(
+                      "{\"thumbnails\":{\"width\":10,\"format\":\"png\","
+                          + "\"quality\":500,\"pages\":[0]}}")));
     }
 
     @Test
@@ -336,17 +438,14 @@ class DocumentsTest {
     }
 
     @Test
-    void delete_410_throws_PoliPageGoneException(WireMockRuntimeInfo wm) {
-      stubFor(
-          delete(urlEqualTo(DOC_PATH))
-              .willReturn(
-                  aResponse()
-                      .withStatus(410)
-                      .withHeader("Content-Type", "application/json")
-                      .withBody("{\"code\":\"GONE\",\"message\":\"already deleted\"}")));
+    void delete_is_idempotent_on_repeated_204(WireMockRuntimeInfo wm) {
+      stubFor(delete(urlEqualTo(DOC_PATH)).willReturn(aResponse().withStatus(204)));
 
-      assertThatThrownBy(() -> newClient(wm).documents().delete(DOC_ID))
-          .isInstanceOf(PoliPageGoneException.class);
+      PoliPageClient client = newClient(wm);
+      client.documents().delete(DOC_ID);
+      client.documents().delete(DOC_ID);
+
+      verify(2, deleteRequestedFor(urlEqualTo(DOC_PATH)));
     }
 
     @Test
@@ -357,7 +456,7 @@ class DocumentsTest {
                   aResponse()
                       .withStatus(404)
                       .withHeader("Content-Type", "application/json")
-                      .withBody("{\"code\":\"DOCUMENT_NOT_FOUND\",\"message\":\"x\"}")));
+                      .withBody("{\"error\":\"DOCUMENT_NOT_FOUND\",\"detail\":\"x\"}")));
 
       assertThatThrownBy(() -> newClient(wm).documents().delete(DOC_ID))
           .isInstanceOf(PoliPageNotFoundException.class);

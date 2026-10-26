@@ -4,9 +4,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The request payload failed validation. HTTP {@code 400} or {@code 422}. Covers codes like {@code
- * VALIDATION_ERROR}, {@code MISSING_DATA}, {@code MISSING_PROJECT_OR_TEMPLATE}, {@code
- * MISSING_TEMPLATE_SLUG}, {@code INVALID_VERSION_FORMAT}, {@code VERSION_REQUIRED}, {@code
- * INVALID_VERSION_FOR_KEY_ENV}.
+ * VALIDATION_ERROR}, {@code MISSING_DATA}, {@code MISSING_TEMPLATE_SLUG}, {@code
+ * PROJECT_REQUIRED_FOR_DOCUMENT}, {@code ENVIRONMENT_MISMATCH}, {@code EMPTY_DOCUMENT}, {@code
+ * TEMPLATE_ERROR}.
  *
  * <p>Not retryable — fix the input and try again.
  */

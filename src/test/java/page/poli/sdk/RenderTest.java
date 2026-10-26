@@ -21,9 +21,14 @@ import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
+import java.lang.reflect.RecordComponent;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -32,18 +37,17 @@ import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageGoneException;
 import page.poli.sdk.exception.PoliPageNotFoundException;
-import page.poli.sdk.exception.PoliPagePaymentRequiredException;
 import page.poli.sdk.exception.PoliPageRateLimitException;
 import page.poli.sdk.exception.PoliPageValidationException;
-import page.poli.sdk.input.InlineModeInput;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.model.DocumentDescriptor;
-import page.poli.sdk.model.PreviewResult;
+import page.poli.sdk.model.Orientation;
+import page.poli.sdk.model.PageFormat;
 
 @WireMockTest
 class RenderTest {
 
-  private static final String TEST_KEY = "pp_test_secret";
+  private static final String TEST_KEY = "pp_sandbox_secret";
   private static final byte[] PDF_BYTES =
       "%PDF-1.4\nfake pdf body".getBytes(StandardCharsets.UTF_8);
   private static final String PRESIGNED_PATH = "/presigned/abc.pdf";
@@ -83,11 +87,10 @@ class RenderTest {
                     .withBody(PDF_BYTES)));
   }
 
-  private static ProjectModeInput simpleInput() {
-    return ProjectModeInput.builder()
+  private static RenderInput simpleInput() {
+    return RenderInput.builder()
         .project("billing")
         .template("invoice")
-        .version("1.0.0")
         .data(Map.of("invoiceNumber", "INV-001"))
         .build();
   }
@@ -183,11 +186,10 @@ class RenderTest {
     stubRenderReturnsPresigned(wm);
     stubPresignedReturnsPdf();
 
-    ProjectModeInput input =
-        ProjectModeInput.builder()
+    RenderInput input =
+        RenderInput.builder()
             .project("billing")
             .template("invoice")
-            .version("1.0.0")
             .data(Map.of("k", "v"))
             .idempotencyKey("user-supplied-key-abc123")
             .build();
@@ -200,7 +202,7 @@ class RenderTest {
   }
 
   @Test
-  void pdf_body_is_exactly_project_template_version_data(WireMockRuntimeInfo wm) {
+  void pdf_body_is_exactly_project_template_data(WireMockRuntimeInfo wm) {
     // equalToJson is strict by default — extra fields (e.g. accidental `metadata: null`)
     // would fail the verify, so this single test also proves nothing else leaks into the body.
     stubRenderReturnsPresigned(wm);
@@ -213,7 +215,35 @@ class RenderTest {
             .withRequestBody(
                 equalToJson(
                     "{\"project\":\"billing\",\"template\":\"invoice\","
-                        + "\"version\":\"1.0.0\",\"data\":{\"invoiceNumber\":\"INV-001\"}}")));
+                        + "\"data\":{\"invoiceNumber\":\"INV-001\"}}")));
+  }
+
+  @Test
+  void pdf_body_holds_exactly_the_seven_fields_when_all_set(WireMockRuntimeInfo wm) {
+    stubRenderReturnsPresigned(wm);
+    stubPresignedReturnsPdf();
+
+    newClient(wm)
+        .render()
+        .pdf(
+            RenderInput.builder()
+                .project("billing")
+                .template("invoice")
+                .data(Map.of("k", "v"))
+                .metadata(Map.of("customerId", "cust_123"))
+                .format(PageFormat.A4)
+                .orientation(Orientation.LANDSCAPE)
+                .locale("fr-FR")
+                .idempotencyKey("idem-1")
+                .build());
+
+    verify(
+        postRequestedFor(urlEqualTo("/v1/render"))
+            .withRequestBody(
+                equalToJson(
+                    "{\"project\":\"billing\",\"template\":\"invoice\","
+                        + "\"data\":{\"k\":\"v\"},\"metadata\":{\"customerId\":\"cust_123\"},"
+                        + "\"format\":\"A4\",\"orientation\":\"landscape\",\"locale\":\"fr-FR\"}")));
   }
 
   @Test
@@ -224,10 +254,9 @@ class RenderTest {
     newClient(wm)
         .render()
         .pdf(
-            ProjectModeInput.builder()
+            RenderInput.builder()
                 .project("billing")
                 .template("invoice")
-                .version("1.0.0")
                 .data(Map.of("invoiceNumber", "INV-001"))
                 .metadata(Map.of("customerId", "cust_123"))
                 .build());
@@ -238,14 +267,14 @@ class RenderTest {
   }
 
   @Test
-  void pdf_omits_version_from_body_when_not_set(WireMockRuntimeInfo wm) {
+  void pdf_omits_unset_optional_fields_from_body(WireMockRuntimeInfo wm) {
     stubRenderReturnsPresigned(wm);
     stubPresignedReturnsPdf();
 
     newClient(wm)
         .render()
         .pdf(
-            ProjectModeInput.builder()
+            RenderInput.builder()
                 .project("billing")
                 .template("invoice")
                 .data(Map.of("k", "v"))
@@ -285,7 +314,7 @@ class RenderTest {
                       .withStatus(status)
                       .withHeader("Content-Type", "application/json")
                       .withHeader("x-request-id", "req_test_42")
-                      .withBody("{\"code\":\"" + code + "\",\"message\":\"" + message + "\"}")));
+                      .withBody("{\"error\":\"" + code + "\",\"detail\":\"" + message + "\"}")));
     }
 
     @Test
@@ -305,11 +334,26 @@ class RenderTest {
     }
 
     @Test
-    void render_402_throws_PoliPagePaymentRequiredException(WireMockRuntimeInfo wm) {
-      stubRenderError(402, "PAYMENT_REQUIRED", "pay up");
+    void render_404_template_not_found_surfaces_code_and_detail(WireMockRuntimeInfo wm) {
+      stubRenderError(404, "TEMPLATE_NOT_FOUND", "Template invoice not found");
 
       assertThatThrownBy(() -> newClient(wm).render().pdf(simpleInput()))
-          .isInstanceOf(PoliPagePaymentRequiredException.class);
+          .isInstanceOf(PoliPageNotFoundException.class)
+          .hasMessage("Template invoice not found")
+          .satisfies(
+              t ->
+                  assertThat(((PoliPageNotFoundException) t).code())
+                      .isEqualTo(PoliPageErrorCode.TEMPLATE_NOT_FOUND));
+    }
+
+    @Test
+    void render_unknown_code_passes_through_verbatim(WireMockRuntimeInfo wm) {
+      stubRenderError(400, "BRAND_NEW_CODE", "something new");
+
+      assertThatThrownBy(() -> newClient(wm).render().pdf(simpleInput()))
+          .isInstanceOf(PoliPageValidationException.class)
+          .hasMessage("something new")
+          .satisfies(t -> assertThat(((PoliPageException) t).code()).isEqualTo("BRAND_NEW_CODE"));
     }
 
     @Test
@@ -326,7 +370,7 @@ class RenderTest {
 
     @Test
     void render_410_throws_PoliPageGoneException(WireMockRuntimeInfo wm) {
-      stubRenderError(410, "GONE", "deleted");
+      stubRenderError(410, "DOCUMENT_GONE", "deleted");
 
       assertThatThrownBy(() -> newClient(wm).render().pdf(simpleInput()))
           .isInstanceOf(PoliPageGoneException.class);
@@ -349,7 +393,7 @@ class RenderTest {
                       .withStatus(429)
                       .withHeader("Content-Type", "application/json")
                       .withHeader("Retry-After", "30")
-                      .withBody("{\"code\":\"QUOTA_EXCEEDED\",\"message\":\"slow\"}")));
+                      .withBody("{\"error\":\"QUOTA_EXCEEDED\",\"detail\":\"slow\"}")));
 
       assertThatThrownBy(() -> newClient(wm).render().pdf(simpleInput()))
           .isInstanceOf(PoliPageRateLimitException.class)
@@ -372,6 +416,43 @@ class RenderTest {
                 assertThat(ex.statusCode()).isEqualTo(500);
                 assertThat(ex.isRetryable()).isTrue();
               });
+    }
+
+    @Test
+    void render_503_publish_in_progress_is_retried_after_retry_after_then_surfaces(
+        WireMockRuntimeInfo wm) {
+      stubFor(
+          post(urlEqualTo("/v1/render"))
+              .willReturn(
+                  aResponse()
+                      .withStatus(503)
+                      .withHeader("Content-Type", "application/json")
+                      .withHeader("Retry-After", "1")
+                      .withBody(
+                          "{\"error\":\"PUBLISH_IN_PROGRESS\","
+                              + "\"detail\":\"A publish is in progress\"}")));
+      List<RetryEvent> retries = new ArrayList<>();
+      PoliPageClient client =
+          PoliPageClient.builder()
+              .apiKey(TEST_KEY)
+              .baseUrl(URI.create(wm.getHttpBaseUrl()))
+              .maxRetries(1)
+              .onRetry(retries::add)
+              .build();
+
+      assertThatThrownBy(() -> client.render().document(simpleInput()))
+          .isExactlyInstanceOf(PoliPageException.class)
+          .satisfies(
+              t -> {
+                PoliPageException ex = (PoliPageException) t;
+                assertThat(ex.code()).isEqualTo(PoliPageErrorCode.PUBLISH_IN_PROGRESS);
+                assertThat(ex.statusCode()).isEqualTo(503);
+                assertThat(ex.getMessage()).isEqualTo("A publish is in progress");
+              });
+      assertThat(retries).hasSize(1);
+      assertThat(retries.get(0).delay()).isEqualTo(Duration.ofSeconds(1));
+      assertThat(retries.get(0).statusCode()).isEqualTo(503);
+      verify(2, postRequestedFor(urlEqualTo("/v1/render")));
     }
 
     @Test
@@ -404,7 +485,6 @@ class RenderTest {
             + "\"projectSlug\":\"billing\","
             + "\"templateId\":\"tpl_1\","
             + "\"templateSlug\":\"invoice\","
-            + "\"version\":\"1.0.0\","
             + "\"environment\":\"sandbox\","
             + "\"apiKeyId\":\"key_test\","
             + "\"format\":\"A4\","
@@ -438,13 +518,48 @@ class RenderTest {
       assertThat(d.organizationId()).isEqualTo("org_42");
       assertThat(d.projectSlug()).isEqualTo("billing");
       assertThat(d.templateSlug()).isEqualTo("invoice");
-      assertThat(d.version()).isEqualTo("1.0.0");
       assertThat(d.environment()).isEqualTo("sandbox");
       assertThat(d.format()).isEqualTo("A4");
       assertThat(d.pageCount()).isEqualTo(3);
       assertThat(d.sizeBytes()).isEqualTo(123456L);
       assertThat(d.presignedPdfUrl()).isEqualTo("https://s3.example.com/doc_abc.pdf");
       assertThat(d.metadata()).containsEntry("customerId", "cust_1");
+    }
+
+    @Test
+    void document_environment_is_any_environment_name(WireMockRuntimeInfo wm) {
+      stubFor(
+          post(urlEqualTo("/v1/render"))
+              .willReturn(
+                  aResponse()
+                      .withStatus(200)
+                      .withHeader("Content-Type", "application/json")
+                      .withBody(FULL_DESCRIPTOR_JSON.replace("\"sandbox\"", "\"staging\""))));
+
+      DocumentDescriptor d = newClient(wm).render().document(simpleInput());
+
+      assertThat(d.environment()).isEqualTo("staging");
+    }
+
+    @Test
+    void descriptor_has_no_version_component() {
+      assertThat(
+              Arrays.stream(DocumentDescriptor.class.getRecordComponents())
+                  .map(RecordComponent::getName))
+          .contains("environment")
+          .doesNotContain("version");
+    }
+
+    @Test
+    void render_preview_surface_is_removed() {
+      assertThat(Arrays.stream(Render.class.getMethods()).map(Method::getName))
+          .doesNotContain("preview");
+      assertThat(Arrays.stream(RenderAsync.class.getMethods()).map(Method::getName))
+          .doesNotContain("preview");
+      assertThatThrownBy(() -> Class.forName("page.poli.sdk.model.PreviewResult"))
+          .isInstanceOf(ClassNotFoundException.class);
+      assertThatThrownBy(() -> Class.forName("page.poli.sdk.input.InlineModeInput"))
+          .isInstanceOf(ClassNotFoundException.class);
     }
 
     @Test
@@ -467,106 +582,14 @@ class RenderTest {
                   aResponse()
                       .withStatus(404)
                       .withHeader("Content-Type", "application/json")
-                      .withBody("{\"code\":\"VERSION_NOT_FOUND\",\"message\":\"nope\"}")));
+                      .withBody("{\"error\":\"PROJECT_NOT_FOUND\",\"detail\":\"nope\"}")));
 
       assertThatThrownBy(() -> newClient(wm).render().document(simpleInput()))
           .isInstanceOf(PoliPageNotFoundException.class)
           .satisfies(
               t ->
                   assertThat(((PoliPageNotFoundException) t).code())
-                      .isEqualTo("VERSION_NOT_FOUND"));
-    }
-  }
-
-  /** Phase 5: {@code render().preview(...)} — HTML preview without storing a document. */
-  @Nested
-  class Preview {
-
-    private static final String PREVIEW_JSON =
-        "{\"html\":\"<html>hi</html>\",\"totalPages\":2,\"environment\":\"sandbox\"}";
-
-    private void stubPreviewSuccess() {
-      stubFor(
-          post(urlEqualTo("/v1/render/preview"))
-              .willReturn(
-                  aResponse()
-                      .withStatus(200)
-                      .withHeader("Content-Type", "application/json")
-                      .withBody(PREVIEW_JSON)));
-    }
-
-    @Test
-    void preview_posts_to_v1_render_preview(WireMockRuntimeInfo wm) {
-      stubPreviewSuccess();
-
-      newClient(wm).render().preview(simpleInput());
-
-      verify(postRequestedFor(urlEqualTo("/v1/render/preview")));
-    }
-
-    @Test
-    void preview_returns_parsed_PreviewResult(WireMockRuntimeInfo wm) {
-      stubPreviewSuccess();
-
-      PreviewResult result = newClient(wm).render().preview(simpleInput());
-
-      assertThat(result.html()).isEqualTo("<html>hi</html>");
-      assertThat(result.totalPages()).isEqualTo(2);
-      assertThat(result.environment()).isEqualTo("sandbox");
-    }
-
-    @Test
-    void preview_accepts_ProjectModeInput_and_body_carries_project_template(
-        WireMockRuntimeInfo wm) {
-      stubPreviewSuccess();
-
-      newClient(wm).render().preview(simpleInput());
-
-      verify(
-          postRequestedFor(urlEqualTo("/v1/render/preview"))
-              .withRequestBody(
-                  equalToJson(
-                      "{\"project\":\"billing\",\"template\":\"invoice\","
-                          + "\"version\":\"1.0.0\",\"data\":{\"invoiceNumber\":\"INV-001\"}}")));
-    }
-
-    @Test
-    void preview_accepts_InlineModeInput_and_body_carries_inline_template(WireMockRuntimeInfo wm) {
-      stubPreviewSuccess();
-
-      newClient(wm)
-          .render()
-          .preview(
-              InlineModeInput.builder()
-                  .template("<html>{{name}}</html>")
-                  .data(Map.of("name", "World"))
-                  .build());
-
-      // Strict equalToJson — inline-mode body must NOT carry project/version, only template+data.
-      verify(
-          postRequestedFor(urlEqualTo("/v1/render/preview"))
-              .withRequestBody(
-                  equalToJson(
-                      "{\"template\":\"<html>{{name}}</html>\",\"data\":{\"name\":\"World\"}}")));
-    }
-
-    @Test
-    void preview_propagates_400_as_PoliPageValidationException(WireMockRuntimeInfo wm) {
-      stubFor(
-          post(urlEqualTo("/v1/render/preview"))
-              .willReturn(
-                  aResponse()
-                      .withStatus(400)
-                      .withHeader("Content-Type", "application/json")
-                      .withBody("{\"code\":\"VALIDATION_ERROR\",\"message\":\"bad\"}")));
-
-      assertThatThrownBy(
-              () ->
-                  newClient(wm)
-                      .render()
-                      .preview(
-                          InlineModeInput.builder().template("<p></p>").data(Map.of()).build()))
-          .isInstanceOf(PoliPageValidationException.class);
+                      .isEqualTo("PROJECT_NOT_FOUND"));
     }
   }
 

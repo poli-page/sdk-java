@@ -7,17 +7,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.model.DocumentDescriptor;
-import page.poli.sdk.model.PreviewResult;
+import page.poli.sdk.model.DocumentPreviewResult;
 
 /**
  * End-to-end smoke against the deployed Poli Page API. Enabled only when {@code POLI_PAGE_API_KEY}
  * is present in the environment, so unit-only contributors aren't forced to set credentials.
  *
- * <p>Override the target environment with {@code POLI_PAGE_BASE_URL} (defaults to the production
- * URL, which the {@code pp_test_*} sandbox key resolves against transparently). Runs via the
- * {@code integration-tests} Maven profile: {@code ./mvnw -P integration-tests verify}.
+ * <p>Use a sandbox key ({@code pp_sandbox_…}): the API resolves the environment from the key, and
+ * the {@code getting-started} project's {@code welcome} template is provisioned in every
+ * organization's sandbox. Override the API URL with {@code POLI_PAGE_BASE_URL} (defaults to the
+ * production URL). Runs via the {@code integration-tests} Maven profile: {@code ./mvnw -P
+ * integration-tests verify}.
  */
 @EnabledIfEnvironmentVariable(named = "POLI_PAGE_API_KEY", matches = "pp_.+")
 class EndToEndTest {
@@ -32,8 +34,8 @@ class EndToEndTest {
     return builder.build();
   }
 
-  private static ProjectModeInput welcomeInput() {
-    return ProjectModeInput.builder()
+  private static RenderInput welcomeInput() {
+    return RenderInput.builder()
         .project("getting-started")
         .template("welcome")
         .data(Map.of("name", "sdk-java integration test"))
@@ -58,10 +60,12 @@ class EndToEndTest {
   }
 
   @Test
-  void render_preview_returns_html() {
-    PreviewResult preview = newClient().render().preview(welcomeInput());
+  void rendered_document_has_a_stored_html_preview() {
+    PoliPageClient client = newClient();
+    DocumentDescriptor doc = client.render().document(welcomeInput());
 
+    assertThat(doc.environment()).isNotBlank();
+    DocumentPreviewResult preview = client.documents().preview(doc.documentId());
     assertThat(preview.html()).contains("<");
-    assertThat(preview.totalPages()).isPositive();
   }
 }

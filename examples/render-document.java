@@ -1,7 +1,7 @@
 // Demonstrates: client.render().document(input) — render and store a PDF server-side.
 import java.util.Map;
 import page.poli.sdk.PoliPageClient;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.model.DocumentDescriptor;
 
 class Example {
@@ -10,7 +10,7 @@ class Example {
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
             .build();
 
-        ProjectModeInput input = ProjectModeInput.builder()
+        RenderInput input = RenderInput.builder()
             .project("billing")
             .template("invoice")
             .data(Map.of("invoiceNumber", "INV-001", "total", 1280))

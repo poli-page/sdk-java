@@ -18,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 import page.poli.sdk.exception.PoliPageException;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.internal.Backoff;
 import page.poli.sdk.internal.HttpTransport;
 import page.poli.sdk.internal.RetryLoop;
@@ -130,7 +130,7 @@ public final class PoliPageClient {
    * @throws PoliPageException on render failure or local file-write failure (code {@code
    *     "io_error"})
    */
-  public void renderToFile(ProjectModeInput input, Path path) {
+  public void renderToFile(RenderInput input, Path path) {
     try (InputStream stream = render.pdfStream(input)) {
       Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
     } catch (IOException e) {
@@ -140,14 +140,14 @@ public final class PoliPageClient {
   }
 
   /**
-   * Async variant of {@link #renderToFile(ProjectModeInput, Path)}.
+   * Async variant of {@link #renderToFile(RenderInput, Path)}.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
    * @return a future that completes when the file has been written (or completes exceptionally on
    *     failure, with the cause wrapped in {@code CompletionException} per JDK convention)
    */
-  public CompletableFuture<Void> renderToFileAsync(ProjectModeInput input, Path path) {
+  public CompletableFuture<Void> renderToFileAsync(RenderInput input, Path path) {
     return renderAsync
         .pdfStream(input)
         .thenAccept(
@@ -205,8 +205,10 @@ public final class PoliPageClient {
     /**
      * Sets the API key used for authentication. Required.
      *
-     * <p>Test keys (prefix {@code pp_test_}) hit the develop environment; live keys (prefix {@code
-     * pp_live_}) hit production. Find your keys at <a
+     * <p>A key has the form {@code pp_{env}_<32 hex>}, where {@code {env}} is the name of the
+     * environment it belongs to ({@code pp_sandbox_…}, {@code pp_live_…}, {@code pp_staging_…}).
+     * The API resolves the environment from the key; the SDK never sends one and only checks that
+     * the key is present and not empty. Find your keys at <a
      * href="https://poli.page/dashboard/keys">poli.page/dashboard/keys</a>.
      *
      * @param apiKey the API key — must not be {@code null}

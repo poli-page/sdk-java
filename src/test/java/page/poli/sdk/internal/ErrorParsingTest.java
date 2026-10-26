@@ -15,7 +15,6 @@ import page.poli.sdk.exception.PoliPageAuthException;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageGoneException;
 import page.poli.sdk.exception.PoliPageNotFoundException;
-import page.poli.sdk.exception.PoliPagePaymentRequiredException;
 import page.poli.sdk.exception.PoliPageRateLimitException;
 import page.poli.sdk.exception.PoliPageValidationException;
 
@@ -23,9 +22,14 @@ class ErrorParsingTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static byte[] json(String code, String message) {
-    return ("{\"code\":\"" + code + "\",\"message\":\"" + message + "\"}")
+  /** The API's error body: {@code { error, detail?, issues?, requestId }}. */
+  private static byte[] json(String code, String detail) {
+    return ("{\"error\":\"" + code + "\",\"detail\":\"" + detail + "\",\"requestId\":\"req_1\"}")
         .getBytes(StandardCharsets.UTF_8);
+  }
+
+  private static byte[] bytes(String body) {
+    return body.getBytes(StandardCharsets.UTF_8);
   }
 
   private static byte[] empty() {
@@ -72,11 +76,21 @@ class ErrorParsingTest {
     }
 
     @Test
-    void status_402_maps_to_payment_required_exception() {
+    void status_403_payment_grace_maps_to_auth_exception() {
       PoliPageException ex =
-          ErrorParsing.toException(402, json("PAYMENT_REQUIRED", "pay up"), null, null, MAPPER);
-      assertThat(ex).isInstanceOf(PoliPagePaymentRequiredException.class);
-      assertThat(ex.code()).isEqualTo("PAYMENT_REQUIRED");
+          ErrorParsing.toException(
+              403, json("ORGANIZATION_PAYMENT_GRACE", "pay"), null, null, MAPPER);
+      assertThat(ex).isInstanceOf(PoliPageAuthException.class);
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.ORGANIZATION_PAYMENT_GRACE);
+    }
+
+    @Test
+    void status_402_maps_to_base_exception() {
+      PoliPageException ex =
+          ErrorParsing.toException(402, json("SOMETHING", "pay up"), null, null, MAPPER);
+      assertThat(ex.getClass()).isEqualTo(PoliPageException.class);
+      assertThat(ex.code()).isEqualTo("SOMETHING");
+      assertThat(ex.statusCode()).isEqualTo(402);
     }
 
     @Test
@@ -88,11 +102,27 @@ class ErrorParsingTest {
     }
 
     @Test
+    void status_404_template_not_found_surfaces_code_and_detail() {
+      PoliPageException ex =
+          ErrorParsing.toException(
+              404,
+              bytes(
+                  "{\"error\":\"TEMPLATE_NOT_FOUND\","
+                      + "\"detail\":\"Template 'invoice' not found in project 'billing'\"}"),
+              null,
+              null,
+              MAPPER);
+      assertThat(ex).isInstanceOf(PoliPageNotFoundException.class);
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.TEMPLATE_NOT_FOUND);
+      assertThat(ex.getMessage()).isEqualTo("Template 'invoice' not found in project 'billing'");
+    }
+
+    @Test
     void status_410_maps_to_gone_exception() {
       PoliPageException ex =
-          ErrorParsing.toException(410, json("GONE", "deleted"), null, null, MAPPER);
+          ErrorParsing.toException(410, json("DOCUMENT_GONE", "deleted"), null, null, MAPPER);
       assertThat(ex).isInstanceOf(PoliPageGoneException.class);
-      assertThat(ex.code()).isEqualTo("GONE");
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.DOCUMENT_GONE);
     }
 
     @Test
@@ -120,68 +150,131 @@ class ErrorParsingTest {
     }
 
     @Test
-    void status_503_with_empty_body_uses_status_defaults() {
-      PoliPageException ex = ErrorParsing.toException(503, empty(), null, null, MAPPER);
+    void status_503_publish_in_progress_surfaces_its_code() {
+      PoliPageException ex =
+          ErrorParsing.toException(
+              503, json("PUBLISH_IN_PROGRESS", "publishing"), null, "1", MAPPER);
       assertThat(ex.getClass()).isEqualTo(PoliPageException.class);
-      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.INTERNAL_ERROR);
-      assertThat(ex.getMessage()).isEqualTo("HTTP 503");
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.PUBLISH_IN_PROGRESS);
+      assertThat(ex.statusCode()).isEqualTo(503);
+      assertThat(ex.isRetryable()).isTrue();
     }
   }
 
   @Nested
-  class BodyParsing {
+  class CodeResolution {
 
     @Test
-    void empty_body_falls_back_to_status_defaults_for_400() {
+    void reads_code_from_error_field() {
+      PoliPageException ex =
+          ErrorParsing.toException(
+              400, bytes("{\"error\":\"ENVIRONMENT_MISMATCH\"}"), null, null, MAPPER);
+      assertThat(ex.code()).isEqualTo("ENVIRONMENT_MISMATCH");
+    }
+
+    @Test
+    void code_field_wins_over_error_field() {
+      PoliPageException ex =
+          ErrorParsing.toException(
+              400, bytes("{\"code\":\"FROM_CODE\",\"error\":\"FROM_ERROR\"}"), null, null, MAPPER);
+      assertThat(ex.code()).isEqualTo("FROM_CODE");
+    }
+
+    @Test
+    void unknown_code_passes_through_verbatim() {
+      PoliPageException ex =
+          ErrorParsing.toException(418, json("SOME_FUTURE_CODE", "new"), null, null, MAPPER);
+      assertThat(ex.code()).isEqualTo("SOME_FUTURE_CODE");
+      assertThat(ex.getMessage()).isEqualTo("new");
+      assertThat(ex.statusCode()).isEqualTo(418);
+    }
+
+    @Test
+    void json_object_without_code_or_error_gives_unknown_error_not_a_status_guess() {
+      for (int status : new int[] {400, 401, 402, 403, 404, 410, 429, 500}) {
+        PoliPageException ex =
+            ErrorParsing.toException(
+                status, bytes("{\"otherField\":\"ignored\"}"), null, null, MAPPER);
+        assertThat(ex.code()).as("status %d", status).isEqualTo("unknown_error");
+        assertThat(ex.getMessage()).isEqualTo("HTTP " + status);
+      }
+    }
+
+    @Test
+    void non_object_json_gives_unknown_error() {
+      PoliPageException ex =
+          ErrorParsing.toException(500, bytes("[\"a\", \"b\"]"), null, null, MAPPER);
+      assertThat(ex.code()).isEqualTo("unknown_error");
+    }
+
+    @Test
+    void empty_body_gives_internal_error_with_real_status() {
       PoliPageException ex = ErrorParsing.toException(400, empty(), null, null, MAPPER);
-      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.VALIDATION_ERROR);
+      assertThat(ex).isInstanceOf(PoliPageValidationException.class);
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.INTERNAL_ERROR);
+      assertThat(ex.statusCode()).isEqualTo(400);
       assertThat(ex.getMessage()).isEqualTo("HTTP 400");
     }
 
     @Test
-    void empty_body_falls_back_for_401() {
-      PoliPageException ex = ErrorParsing.toException(401, empty(), null, null, MAPPER);
-      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.INVALID_API_KEY);
+    void whitespace_only_body_gives_internal_error() {
+      PoliPageException ex = ErrorParsing.toException(502, bytes("  \n "), null, null, MAPPER);
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.INTERNAL_ERROR);
+      assertThat(ex.statusCode()).isEqualTo(502);
     }
 
     @Test
-    void malformed_json_falls_back_to_status_defaults() {
-      byte[] garbage = "not json {{}".getBytes(StandardCharsets.UTF_8);
-      PoliPageException ex = ErrorParsing.toException(404, garbage, null, null, MAPPER);
+    void non_json_body_gives_internal_error_with_real_status() {
+      PoliPageException ex =
+          ErrorParsing.toException(404, bytes("<html>Not Found</html>"), null, null, MAPPER);
       assertThat(ex).isInstanceOf(PoliPageNotFoundException.class);
-      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.NOT_FOUND);
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.INTERNAL_ERROR);
+      assertThat(ex.statusCode()).isEqualTo(404);
       assertThat(ex.getMessage()).isEqualTo("HTTP 404");
     }
+  }
+
+  @Nested
+  class MessageResolution {
 
     @Test
-    void json_object_without_code_or_message_falls_back() {
-      byte[] body = "{\"otherField\":\"ignored\"}".getBytes(StandardCharsets.UTF_8);
-      PoliPageException ex = ErrorParsing.toException(400, body, null, null, MAPPER);
-      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.VALIDATION_ERROR);
+    void detail_wins_over_title_and_message() {
+      PoliPageException ex =
+          ErrorParsing.toException(
+              400,
+              bytes("{\"error\":\"X\",\"detail\":\"d\",\"title\":\"t\",\"message\":\"m\"}"),
+              null,
+              null,
+              MAPPER);
+      assertThat(ex.getMessage()).isEqualTo("d");
+    }
+
+    @Test
+    void title_wins_over_message() {
+      PoliPageException ex =
+          ErrorParsing.toException(
+              400,
+              bytes("{\"error\":\"X\",\"title\":\"t\",\"message\":\"m\"}"),
+              null,
+              null,
+              MAPPER);
+      assertThat(ex.getMessage()).isEqualTo("t");
+    }
+
+    @Test
+    void message_is_the_last_body_fallback() {
+      PoliPageException ex =
+          ErrorParsing.toException(
+              400, bytes("{\"error\":\"X\",\"message\":\"m\"}"), null, null, MAPPER);
+      assertThat(ex.getMessage()).isEqualTo("m");
+    }
+
+    @Test
+    void no_message_field_uses_http_status() {
+      PoliPageException ex =
+          ErrorParsing.toException(400, bytes("{\"error\":\"X\"}"), null, null, MAPPER);
+      assertThat(ex.code()).isEqualTo("X");
       assertThat(ex.getMessage()).isEqualTo("HTTP 400");
-    }
-
-    @Test
-    void json_with_only_message_uses_default_code() {
-      byte[] body = "{\"message\":\"explicit\"}".getBytes(StandardCharsets.UTF_8);
-      PoliPageException ex = ErrorParsing.toException(400, body, null, null, MAPPER);
-      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.VALIDATION_ERROR);
-      assertThat(ex.getMessage()).isEqualTo("explicit");
-    }
-
-    @Test
-    void json_with_only_code_uses_default_message() {
-      byte[] body = "{\"code\":\"CUSTOM_CODE\"}".getBytes(StandardCharsets.UTF_8);
-      PoliPageException ex = ErrorParsing.toException(400, body, null, null, MAPPER);
-      assertThat(ex.code()).isEqualTo("CUSTOM_CODE");
-      assertThat(ex.getMessage()).isEqualTo("HTTP 400");
-    }
-
-    @Test
-    void non_object_json_falls_back_to_defaults() {
-      byte[] body = "[\"a\", \"b\"]".getBytes(StandardCharsets.UTF_8);
-      PoliPageException ex = ErrorParsing.toException(500, body, null, null, MAPPER);
-      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.INTERNAL_ERROR);
     }
   }
 

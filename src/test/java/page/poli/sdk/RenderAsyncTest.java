@@ -20,14 +20,13 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.Test;
 import page.poli.sdk.exception.PoliPageNotFoundException;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.model.DocumentDescriptor;
-import page.poli.sdk.model.PreviewResult;
 
 @WireMockTest
 class RenderAsyncTest {
 
-  private static final String TEST_KEY = "pp_test_secret";
+  private static final String TEST_KEY = "pp_sandbox_secret";
   private static final byte[] PDF_BYTES = "%PDF-1.4\nasync pdf".getBytes(StandardCharsets.UTF_8);
   private static final String PRESIGNED_PATH = "/presigned/async.pdf";
 
@@ -62,11 +61,10 @@ class RenderAsyncTest {
         .build();
   }
 
-  private static ProjectModeInput simpleInput() {
-    return ProjectModeInput.builder()
+  private static RenderInput simpleInput() {
+    return RenderInput.builder()
         .project("billing")
         .template("invoice")
-        .version("1.0.0")
         .data(Map.of("k", "v"))
         .build();
   }
@@ -122,23 +120,6 @@ class RenderAsyncTest {
   }
 
   @Test
-  void preview_returns_PreviewResult_via_future(WireMockRuntimeInfo wm) {
-    stubFor(
-        post(urlEqualTo("/v1/render/preview"))
-            .willReturn(
-                aResponse()
-                    .withStatus(200)
-                    .withHeader("Content-Type", "application/json")
-                    .withBody(
-                        "{\"html\":\"<html/>\",\"totalPages\":1,\"environment\":\"sandbox\"}")));
-
-    PreviewResult r = newClient(wm).renderAsync().preview(simpleInput()).join();
-
-    assertThat(r.html()).isEqualTo("<html/>");
-    assertThat(r.totalPages()).isEqualTo(1);
-  }
-
-  @Test
   void error_wraps_in_CompletionException_with_typed_cause(WireMockRuntimeInfo wm) {
     stubFor(
         post(urlEqualTo("/v1/render"))
@@ -146,11 +127,15 @@ class RenderAsyncTest {
                 aResponse()
                     .withStatus(404)
                     .withHeader("Content-Type", "application/json")
-                    .withBody("{\"code\":\"VERSION_NOT_FOUND\",\"message\":\"x\"}")));
+                    .withBody("{\"error\":\"TEMPLATE_NOT_FOUND\",\"detail\":\"x\"}")));
 
     assertThatThrownBy(() -> newClient(wm).renderAsync().document(simpleInput()).join())
         .isInstanceOf(CompletionException.class)
-        .hasCauseInstanceOf(PoliPageNotFoundException.class);
+        .hasCauseInstanceOf(PoliPageNotFoundException.class)
+        .satisfies(
+            t ->
+                assertThat(((PoliPageNotFoundException) t.getCause()).code())
+                    .isEqualTo(PoliPageErrorCode.TEMPLATE_NOT_FOUND));
   }
 
   @Test

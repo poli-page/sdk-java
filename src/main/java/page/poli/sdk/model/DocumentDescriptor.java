@@ -14,6 +14,10 @@ import org.jspecify.annotations.Nullable;
  * {@link #presignedPdfUrl()} to fetch the rendered PDF bytes (the URL has a short TTL — get a fresh
  * one by calling {@code documents().get(id)} when {@link #expiresAt} is past).
  *
+ * <p>{@link #environment} is the name of the environment the rendering key belongs to ({@code
+ * "sandbox"}, {@code "live"}, {@code "staging"}, …). It is an open set: the SDK returns whatever
+ * the API sends, unchanged.
+ *
  * <p>The matching shape on the Node SDK is {@code RawDocumentDescriptor}; the deployed API is the
  * source of truth when the two disagree.
  */
@@ -25,7 +29,6 @@ public record DocumentDescriptor(
     @JsonProperty("projectSlug") @Nullable String projectSlug,
     @JsonProperty("templateId") @Nullable String templateId,
     @JsonProperty("templateSlug") @Nullable String templateSlug,
-    @JsonProperty("version") @Nullable String version,
     @JsonProperty("environment") String environment,
     @JsonProperty("apiKeyId") @Nullable String apiKeyId,
     @JsonProperty("format") String format,

@@ -36,7 +36,7 @@ class HookEventsTest {
     List<RequestEvent> events = new ArrayList<>();
     PoliPageClient client =
         PoliPageClient.builder()
-            .apiKey("pp_test_x")
+            .apiKey("pp_sandbox_x")
             .baseUrl(URI.create(wm.getHttpBaseUrl()))
             .maxRetries(0)
             .onRequest(events::add)
@@ -62,7 +62,7 @@ class HookEventsTest {
 
     PoliPageClient client =
         PoliPageClient.builder()
-            .apiKey("pp_test_x")
+            .apiKey("pp_sandbox_x")
             .baseUrl(URI.create(wm.getHttpBaseUrl()))
             .maxRetries(0)
             .onRequest(
@@ -89,7 +89,7 @@ class HookEventsTest {
     List<ResponseEvent> events = new ArrayList<>();
     PoliPageClient client =
         PoliPageClient.builder()
-            .apiKey("pp_test_x")
+            .apiKey("pp_sandbox_x")
             .baseUrl(URI.create(wm.getHttpBaseUrl()))
             .maxRetries(0)
             .onResponse(events::add)
@@ -124,7 +124,7 @@ class HookEventsTest {
     List<ResponseEvent> events = new ArrayList<>();
     PoliPageClient client =
         PoliPageClient.builder()
-            .apiKey("pp_test_x")
+            .apiKey("pp_sandbox_x")
             .baseUrl(URI.create(wm.getHttpBaseUrl()))
             .maxRetries(1)
             .retryDelay(java.time.Duration.ofMillis(1))

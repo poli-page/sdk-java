@@ -56,9 +56,9 @@ const METHODS: readonly Method[] = [
   {
     slug: 'render-pdf',
     displayName: 'render().pdf',
-    signature: 'byte[] pdf(ProjectModeInput input)',
+    signature: 'byte[] pdf(RenderInput input)',
     summary: 'Render the given input as a PDF and return the raw bytes. Two HTTP hops under the hood: POST /v1/render to produce a stored document, then GET presignedPdfUrl to fetch the bytes.',
-    params: [{ name: 'input', type: 'ProjectModeInput', required: true, description: 'The render input — non-null, project mode.' }],
+    params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`byte[]` — the rendered PDF bytes.',
     errorCodes: COMMON_RETRYABLE,
     exampleFile: 'render-pdf.java',
@@ -66,29 +66,19 @@ const METHODS: readonly Method[] = [
   {
     slug: 'render-pdf-stream',
     displayName: 'render().pdfStream',
-    signature: 'InputStream pdfStream(ProjectModeInput input)',
+    signature: 'InputStream pdfStream(RenderInput input)',
     summary: 'Render the given input as a PDF and return a streaming body. Use this for large documents to avoid buffering the full byte array in memory. The returned InputStream owns the underlying HTTP connection — wrap the call in try-with-resources.',
-    params: [{ name: 'input', type: 'ProjectModeInput', required: true, description: 'The render input — non-null, project mode.' }],
+    params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`InputStream` reading the PDF body — caller must close.',
     errorCodes: COMMON_RETRYABLE,
     exampleFile: 'render-pdf-stream.java',
   },
   {
-    slug: 'render-preview',
-    displayName: 'render().preview',
-    signature: 'PreviewResult preview(RenderInput input)',
-    summary: 'Render the given input as an HTML preview without producing a stored document. Accepts either ProjectModeInput or InlineModeInput via the sealed RenderInput supertype.',
-    params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — accepts either ProjectModeInput or InlineModeInput.' }],
-    returns: '`PreviewResult` — html, totalPages, environment.',
-    errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'INTERNAL_ERROR'],
-    exampleFile: 'render-preview.java',
-  },
-  {
     slug: 'render-document',
     displayName: 'render().document',
-    signature: 'DocumentDescriptor document(ProjectModeInput input)',
+    signature: 'DocumentDescriptor document(RenderInput input)',
     summary: 'Render the given input and return the stored document descriptor without downloading the PDF. Useful when you want to persist documentId and download on demand later.',
-    params: [{ name: 'input', type: 'ProjectModeInput', required: true, description: 'The render input — non-null, project mode.' }],
+    params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`DocumentDescriptor` — includes documentId, presignedPdfUrl (15-minute TTL), metadata.',
     errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'INTERNAL_ERROR'],
     exampleFile: 'render-document.java',
@@ -117,10 +107,10 @@ const METHODS: readonly Method[] = [
     slug: 'documents-thumbnails',
     displayName: 'documents().thumbnails',
     signature: 'List<Thumbnail> thumbnails(String id, ThumbnailOptions options)',
-    summary: 'Request page thumbnails of the stored document.',
+    summary: 'Request page thumbnails of the stored document. Every option is optional; thumbnails(id) uses the API defaults (400 px wide jpeg, every page).',
     params: [
       { name: 'id', type: 'String', required: true, description: 'The document ID.' },
-      { name: 'options', type: 'ThumbnailOptions', required: true, description: 'Thumbnail width, format, optional quality (JPEG only) and page filter.' },
+      { name: 'options', type: 'ThumbnailOptions', required: false, description: 'Optional width, format (jpeg, webp, png), quality (jpeg only) and page filter. Unset options are not sent.' },
     ],
     returns: '`List<Thumbnail>` — base64-encoded images, one per requested page.',
     errorCodes: ['DOCUMENT_NOT_FOUND', 'VALIDATION_ERROR', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
@@ -130,7 +120,7 @@ const METHODS: readonly Method[] = [
     slug: 'documents-delete',
     displayName: 'documents().delete',
     signature: 'void delete(String id)',
-    summary: 'Soft-delete a stored document. Subsequent get / preview calls throw PoliPageGoneException (HTTP 410).',
+    summary: 'Soft-delete a stored document. Idempotent: deleting an already-deleted document also succeeds (204). Subsequent get / preview calls throw PoliPageGoneException (HTTP 410, DOCUMENT_GONE).',
     params: [{ name: 'id', type: 'String', required: true, description: 'The document ID.' }],
     returns: '`void` — no body on success.',
     errorCodes: ['DOCUMENT_NOT_FOUND', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
@@ -139,10 +129,10 @@ const METHODS: readonly Method[] = [
   {
     slug: 'render-to-file',
     displayName: 'renderToFile',
-    signature: 'void renderToFile(ProjectModeInput input, Path path)',
+    signature: 'void renderToFile(RenderInput input, Path path)',
     summary: 'Render the input as a PDF and stream the bytes directly to path, overwriting any existing file. Convenience over render().pdfStream + manual copy.',
     params: [
-      { name: 'input', type: 'ProjectModeInput', required: true, description: 'The render input — non-null.' },
+      { name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' },
       { name: 'path', type: 'Path', required: true, description: 'Destination file path — non-null. Existing file is overwritten.' },
     ],
     returns: '`void` — the file is closed before the method returns, even on failure.',
@@ -162,26 +152,37 @@ const SDK_INTERNAL_ERRORS = [
 ];
 
 const API_ERRORS = [
-  { code: 'MISSING_API_KEY', when: 'No API key in the request.' },
-  { code: 'INVALID_API_KEY', when: 'The API key is malformed or revoked.' },
-  { code: 'FORBIDDEN', when: 'The key does not have access to the requested resource.' },
-  { code: 'PAYMENT_REQUIRED', when: 'Organization billing is past due.' },
-  { code: 'ORGANIZATION_CANCELLED', when: 'The organization has been cancelled.' },
-  { code: 'ORGANIZATION_PURGED', when: 'The organization has been purged.' },
-  { code: 'NOT_FOUND', when: 'The project/template slug does not exist or is not published.' },
-  { code: 'VERSION_NOT_FOUND', when: 'The pinned version does not exist for this template.' },
-  { code: 'DOCUMENT_NOT_FOUND', when: 'No stored document matches the supplied id.' },
-  { code: 'GONE', when: 'The resource existed but has been deleted.' },
-  { code: 'VALIDATION_ERROR', when: '`data` does not satisfy the template schema.' },
-  { code: 'MISSING_DATA', when: 'Request body lacks the required `data` field.' },
-  { code: 'MISSING_PROJECT_OR_TEMPLATE', when: 'Project mode call without both `project` and `template`.' },
-  { code: 'MISSING_TEMPLATE_SLUG', when: 'Template slug is missing.' },
-  { code: 'INVALID_VERSION_FORMAT', when: 'The `version` string is not a valid semver.' },
-  { code: 'VERSION_REQUIRED', when: 'Live keys require a pinned `version`.' },
-  { code: 'INVALID_VERSION_FOR_KEY_ENV', when: 'Sandbox key targeting a live-only version, or vice versa.' },
-  { code: 'QUOTA_EXCEEDED', when: 'Per-key rate limit or monthly quota reached. Retryable.' },
-  { code: 'OVERAGE_CAP_EXCEEDED', when: 'Hard overage cap reached. Not retryable.' },
-  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx. Retryable.' },
+  { code: 'MISSING_API_KEY', when: 'No API key in the request. HTTP 401.' },
+  { code: 'INVALID_API_KEY', when: 'The API key is malformed or revoked. HTTP 401.' },
+  { code: 'FORBIDDEN', when: 'The key does not have access to the requested resource. HTTP 403.' },
+  { code: 'ENVIRONMENT_PROTECTED', when: 'The target environment is protected. HTTP 403.' },
+  { code: 'THUMBNAILS_NOT_AVAILABLE', when: 'Thumbnails are not available for this organization. HTTP 403.' },
+  { code: 'ORGANIZATION_PAYMENT_GRACE', when: 'The organization is in its payment grace period. HTTP 403.' },
+  { code: 'ORGANIZATION_CANCELLED', when: 'The organization has been cancelled. HTTP 403.' },
+  { code: 'ORGANIZATION_PURGED', when: 'The organization has been purged. HTTP 410.' },
+  { code: 'ORGANIZATION_MIGRATING', when: 'The organization is being migrated. HTTP 503.' },
+  { code: 'NOT_FOUND', when: 'The resource does not exist. HTTP 404.' },
+  { code: 'PROJECT_NOT_FOUND', when: 'The project does not exist. HTTP 404.' },
+  { code: 'PROJECT_NOT_IN_ENVIRONMENT', when: 'The project has no copy in the key\'s environment. HTTP 404.' },
+  { code: 'TEMPLATE_NOT_FOUND', when: 'The template does not exist in the project. HTTP 404.' },
+  { code: 'DOCUMENT_NOT_FOUND', when: 'No stored document matches the supplied id. HTTP 404.' },
+  { code: 'DOCUMENT_GONE', when: 'The document existed but has been deleted. HTTP 410.' },
+  { code: 'VALIDATION_ERROR', when: 'The request body failed validation (unknown field, out-of-range option, …). HTTP 400.' },
+  { code: 'MISSING_DATA', when: 'Request body lacks the required `data` field. HTTP 400.' },
+  { code: 'MISSING_TEMPLATE_SLUG', when: 'Template slug is missing. HTTP 400.' },
+  { code: 'PROJECT_REQUIRED_FOR_DOCUMENT', when: 'A document render needs a `project`. HTTP 400.' },
+  { code: 'ENVIRONMENT_MISMATCH', when: 'The request does not match the key\'s environment. HTTP 400.' },
+  { code: 'EMPTY_DOCUMENT', when: 'The rendered document is empty. HTTP 400.' },
+  { code: 'TEMPLATE_ERROR', when: 'The template could not be rendered. HTTP 400.' },
+  { code: 'RENDER_BODY_TOO_LARGE', when: 'The render request body is too large. HTTP 413.' },
+  { code: 'DOCUMENT_TOO_LARGE', when: 'The rendered document is too large. HTTP 413.' },
+  { code: 'QUOTA_EXCEEDED', when: 'Monthly quota reached. HTTP 429. Retryable.' },
+  { code: 'OVERAGE_CAP_EXCEEDED', when: 'Hard overage cap reached. HTTP 429.' },
+  { code: 'RATE_LIMIT_EXCEEDED', when: 'Request rate limit exceeded. HTTP 429. Retryable.' },
+  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx, or an error body that is not JSON. Retryable on 5xx.' },
+  { code: 'PUBLISH_IN_PROGRESS', when: 'A publish locks the project in the key\'s environment. HTTP 503 with Retry-After. Retryable.' },
+  { code: 'STORAGE_ACCESS_DENIED', when: 'Storage access was denied. HTTP 502. Retryable.' },
+  { code: 'RENDER_TIMEOUT', when: 'The render did not finish in time. HTTP 504. Retryable.' },
 ];
 
 const TYPES = [
@@ -191,15 +192,12 @@ const TYPES = [
   { name: 'RenderAsync', kind: 'class', summary: 'Asynchronous counterpart of Render. Each method returns a `CompletableFuture` of the blocking facade\'s return type.' },
   { name: 'Documents', kind: 'class', summary: 'Blocking stored-documents facade. Obtained via client.documents().' },
   { name: 'DocumentsAsync', kind: 'class', summary: 'Asynchronous counterpart of Documents.' },
-  { name: 'RenderInput', kind: 'sealed interface', summary: 'Sealed supertype permitting ProjectModeInput and InlineModeInput. Used by render().preview.' },
-  { name: 'ProjectModeInput', kind: 'record', summary: 'Render against a stored project + template by slug. project, template, data required; version and metadata optional. Constructed via builder().' },
-  { name: 'InlineModeInput', kind: 'record', summary: 'Render with raw HTML inline. template and data required; metadata optional. Accepted only by render().preview.' },
-  { name: 'DocumentDescriptor', kind: 'record', summary: 'Stored document descriptor returned by render().document and documents().get. Includes documentId, presignedPdfUrl (15-minute TTL), metadata.' },
-  { name: 'PreviewResult', kind: 'record', summary: 'Result of render().preview. Carries html, totalPages, environment.' },
+  { name: 'RenderInput', kind: 'record', summary: 'Render against a stored project + template by slug, using the copy published in the API key\'s environment. project, template, data required; metadata, format, orientation, locale optional. Constructed via builder().' },
+  { name: 'DocumentDescriptor', kind: 'record', summary: 'Stored document descriptor returned by render().document and documents().get. Includes documentId, environment (any environment name), presignedPdfUrl (15-minute TTL), metadata.' },
   { name: 'DocumentPreviewResult', kind: 'record', summary: 'Result of documents().preview. Carries html and pageCount.' },
   { name: 'Thumbnail', kind: 'record', summary: 'One page thumbnail: page (1-based), width, height, contentType, base64-encoded data.' },
-  { name: 'ThumbnailOptions', kind: 'record', summary: 'Options for documents().thumbnails. width and format required; quality only valid for JPEG; pages restricts rendering.' },
-  { name: 'ThumbnailFormat', kind: 'enum', summary: 'PNG or JPEG. Wire form is lowercase.' },
+  { name: 'ThumbnailOptions', kind: 'record', summary: 'Options for documents().thumbnails. Every option is optional (API defaults: 400 px wide jpeg); quality applies to jpeg only; pages restricts rendering. No client-side bounds check.' },
+  { name: 'ThumbnailFormat', kind: 'enum', summary: 'PNG, JPEG or WEBP. Wire form is lowercase.' },
   { name: 'RetryEvent', kind: 'record', summary: 'Event passed to the onRetry hook before each retry sleep. attempt, delay, statusCode, reason.' },
   { name: 'PoliPageErrorCode', kind: 'class', summary: 'String constants for every wire error code plus SDK-internal codes.' },
 ];
@@ -285,7 +283,7 @@ The client is built via the static \`builder()\` method. The only required field
 
 The client exposes four cached facade instances:
 
-- [\`render()\`](./methods/render-pdf/) — blocking render facade (PDF, stream, preview, document).
+- [\`render()\`](./methods/render-pdf/) — blocking render facade (PDF, stream, document).
 - [\`renderAsync()\`](./methods/render-pdf/) — asynchronous counterpart; methods return \`CompletableFuture<T>\`.
 - [\`documents()\`](./methods/documents-get/) — blocking stored-documents facade (get, preview, thumbnails, delete).
 - [\`documentsAsync()\`](./methods/documents-get/) — asynchronous counterpart.
@@ -326,7 +324,7 @@ Every failure thrown by the SDK is a \`PoliPageException\` (a \`RuntimeException
 
 ## Exception subclasses
 
-The sealed permits are: \`PoliPageAuthException\` (401/403), \`PoliPagePaymentRequiredException\` (402), \`PoliPageNotFoundException\` (404), \`PoliPageGoneException\` (410), \`PoliPageValidationException\` (400/422), \`PoliPageRateLimitException\` (429, exposes \`retryAfter()\`), \`PoliPageNetworkException\` (transport, no HTTP status), \`PoliPageDownloadException\` (presigned URL fetch). The base \`PoliPageException\` is also concrete for the unmapped tail.
+The sealed permits are: \`PoliPageAuthException\` (401/403), \`PoliPageNotFoundException\` (404), \`PoliPageGoneException\` (410), \`PoliPageValidationException\` (400/422), \`PoliPageRateLimitException\` (429, exposes \`retryAfter()\`), \`PoliPageNetworkException\` (transport, no HTTP status), \`PoliPageDownloadException\` (presigned URL fetch). The base \`PoliPageException\` is also concrete for the unmapped tail.
 
 ## SDK-internal codes
 

@@ -5,14 +5,14 @@ end-to-end against the develop API. The result is four files on disk
 (`render.pdf`, `stream.pdf`, `file.pdf`, `preview.html`) plus a deliberate
 `PoliPageException` caught and inspected at the end.
 
-The demo renders the `getting-started/welcome/1.0.0` template, which is
+The demo renders the `getting-started/welcome` template, which is
 auto-provisioned in every Poli Page org — so it works out of the box with any
 fresh API key, no project setup needed.
 
 ## Prereqs
 
 - **Java 17 or later** on your `PATH`.
-- A `pp_test_*` API key (the demo will help you get one on first run).
+- A `pp_sandbox_*` API key (the demo will help you get one on first run).
 
 ## Run
 
@@ -26,12 +26,12 @@ That's it. The wrapper installs the working-tree SDK to your local `~/.m2/`
 first, then runs the demo against it.
 
 On first run, if no `POLI_PAGE_API_KEY` is set, the demo walks you through
-creating a test key and pastes it into `.env` at the repo root so future
+creating a sandbox key and pastes it into `.env` at the repo root so future
 runs pick it up automatically. To skip the prompt — for CI, or just for a
 one-off — set the env var inline:
 
 ```bash
-POLI_PAGE_API_KEY=pp_test_... ./scripts/demo
+POLI_PAGE_API_KEY=pp_sandbox_... ./scripts/demo
 ```
 
 ## What it does
@@ -43,7 +43,7 @@ POLI_PAGE_API_KEY=pp_test_... ./scripts/demo
 | 3    | `client.renderToFile(input, path)`                         | `output/file.pdf`     |
 | 4    | `client.render().document(input)`                          | (descriptor in stdout)|
 | 5    | `client.documents().preview(documentId)`                   | `output/preview.html` |
-| 6    | Send `version: "banana"` → catch `PoliPageException`       | (inspected in stdout) |
+| 6    | Render template `does-not-exist` → catch `TEMPLATE_NOT_FOUND` | (inspected in stdout) |
 
 Outputs land in `examples/demo/output/` (gitignored). Open the PDFs and
 HTML to confirm the SDK is producing valid documents end-to-end.

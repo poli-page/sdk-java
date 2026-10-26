@@ -33,7 +33,7 @@ Integration tests hit the API. They live in a separate Maven profile
 and are gated by the `POLI_PAGE_API_KEY` env var:
 
 ```bash
-export POLI_PAGE_API_KEY=pp_test_...
+export POLI_PAGE_API_KEY=pp_sandbox_...
 ./mvnw verify -P integration-tests
 ```
 

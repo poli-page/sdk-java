@@ -17,11 +17,9 @@ import java.util.Map;
 import page.poli.sdk.PoliPageClient;
 import page.poli.sdk.exception.PoliPageAuthException;
 import page.poli.sdk.exception.PoliPageException;
-import page.poli.sdk.exception.PoliPagePaymentRequiredException;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.DocumentPreviewResult;
-import page.poli.sdk.model.PreviewResult;
 import page.poli.sdk.model.Thumbnail;
 import page.poli.sdk.model.ThumbnailFormat;
 import page.poli.sdk.model.ThumbnailOptions;
@@ -33,12 +31,11 @@ import page.poli.sdk.model.ThumbnailOptions;
 public final class Main {
 
   private static final String DEFAULT_BASE_URL = "https://api.poli.page";
-  private static final int TOTAL_STEPS = 10;
-  private static final ProjectModeInput INPUT =
-      ProjectModeInput.builder()
+  private static final int TOTAL_STEPS = 9;
+  private static final RenderInput INPUT =
+      RenderInput.builder()
           .project("getting-started")
           .template("welcome")
-          .version("1.0.0")
           .data(Map.of("name", "SDK Demo"))
           .build();
 
@@ -63,13 +60,12 @@ public final class Main {
     step1RenderPdf(client);
     step2RenderPdfStream(client);
     step3RenderToFile(client);
-    step4RenderPreview(client);
-    DocumentDescriptor doc = step5RenderDocument(client);
-    step6DocumentsGet(client, doc.documentId());
-    step7DocumentsThumbnails(client, doc.documentId());
-    step8DocumentsPreview(client, doc.documentId());
-    step9DocumentsDelete(client, doc.documentId());
-    step10ErrorHandling(client);
+    DocumentDescriptor doc = step4RenderDocument(client);
+    step5DocumentsGet(client, doc.documentId());
+    step6DocumentsThumbnails(client, doc.documentId());
+    step7DocumentsPreview(client, doc.documentId());
+    step8DocumentsDelete(client, doc.documentId());
+    step9ErrorHandling(client);
 
     Console.println("");
     Console.println(
@@ -130,23 +126,8 @@ public final class Main {
     Console.println("  " + Console.dim("open: ") + Console.fileLink(out.toString()));
   }
 
-  private static void step4RenderPreview(PoliPageClient client) throws IOException {
-    Console.step(4, TOTAL_STEPS, "render().preview() — paginated HTML");
-    PreviewResult preview = client.render().preview(INPUT);
-    Path out = OUTPUT_DIR.resolve("render_preview.html");
-    Files.writeString(out, preview.html());
-    Console.println(
-        "  "
-            + Console.bold(String.valueOf(preview.totalPages()))
-            + " page(s), "
-            + preview.html().length()
-            + " chars, env="
-            + preview.environment());
-    Console.println("  " + Console.dim("open: ") + Console.fileLink(out.toString()));
-  }
-
-  private static DocumentDescriptor step5RenderDocument(PoliPageClient client) {
-    Console.step(5, TOTAL_STEPS, "render().document() — store the document, return descriptor");
+  private static DocumentDescriptor step4RenderDocument(PoliPageClient client) {
+    Console.step(4, TOTAL_STEPS, "render().document() — store the document, return descriptor");
     DocumentDescriptor doc = client.render().document(INPUT);
     Console.println("  " + Console.dim("documentId: ") + Console.bold(doc.documentId()));
     Console.println("  " + Console.dim("pageCount:  ") + doc.pageCount());
@@ -154,16 +135,16 @@ public final class Main {
     return doc;
   }
 
-  private static void step6DocumentsGet(PoliPageClient client, String documentId) {
-    Console.step(6, TOTAL_STEPS, "documents().get(id) — refresh descriptor");
+  private static void step5DocumentsGet(PoliPageClient client, String documentId) {
+    Console.step(5, TOTAL_STEPS, "documents().get(id) — refresh descriptor");
     DocumentDescriptor fresh = client.documents().get(documentId);
     Console.println(
         "  " + Console.dim("refreshed presigned URL valid until: ") + fresh.expiresAt());
   }
 
-  private static void step7DocumentsThumbnails(PoliPageClient client, String documentId)
+  private static void step6DocumentsThumbnails(PoliPageClient client, String documentId)
       throws IOException {
-    Console.step(7, TOTAL_STEPS, "documents().thumbnails(id) — page images (Starter+ tier)");
+    Console.step(6, TOTAL_STEPS, "documents().thumbnails(id) — page images (Starter+ tier)");
     try {
       List<Thumbnail> thumbs =
           client
@@ -181,12 +162,11 @@ public final class Main {
       }
       Console.println("  " + Console.dim("open: ") + Console.fileLink(thumbDir.toString()));
     } catch (PoliPageException e) {
-      // Tier-gated: Free keys are rejected with 402 PAYMENT_REQUIRED or 403
-      // FORBIDDEN / THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
+      // Tier-gated: Free keys are rejected with 403 FORBIDDEN /
+      // THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
       // Soft-skip any of those so the demo keeps running on Free.
       boolean tierGated =
           "THUMBNAILS_NOT_AVAILABLE".equals(e.code())
-              || e instanceof PoliPagePaymentRequiredException
               || (e instanceof PoliPageAuthException && e.statusCode() == 403);
       if (tierGated) {
         Console.println(
@@ -203,9 +183,9 @@ public final class Main {
     }
   }
 
-  private static void step8DocumentsPreview(PoliPageClient client, String documentId)
+  private static void step7DocumentsPreview(PoliPageClient client, String documentId)
       throws IOException {
-    Console.step(8, TOTAL_STEPS, "documents().preview(id) — stored document HTML (no engine work)");
+    Console.step(7, TOTAL_STEPS, "documents().preview(id) — stored document HTML (no engine work)");
     DocumentPreviewResult preview = client.documents().preview(documentId);
     Path out = OUTPUT_DIR.resolve("documents_preview.html");
     Files.writeString(out, preview.html());
@@ -218,14 +198,14 @@ public final class Main {
     Console.println("  " + Console.dim("open: ") + Console.fileLink(out.toString()));
   }
 
-  private static void step9DocumentsDelete(PoliPageClient client, String documentId) {
-    Console.step(9, TOTAL_STEPS, "documents().delete(id) — soft-delete");
+  private static void step8DocumentsDelete(PoliPageClient client, String documentId) {
+    Console.step(8, TOTAL_STEPS, "documents().delete(id) — soft-delete");
     client.documents().delete(documentId);
     Console.println("  " + Console.green("✔ ") + "deleted " + documentId);
   }
 
-  private static void step10ErrorHandling(PoliPageClient client) {
-    Console.step(10, TOTAL_STEPS, "error handling — DEMO ONLY (we trigger an error on purpose)");
+  private static void step9ErrorHandling(PoliPageClient client) {
+    Console.step(9, TOTAL_STEPS, "error handling — DEMO ONLY (we trigger an error on purpose)");
     Console.println(
         Console.yellow("  ⚠  This step is intentional — the SDK is about to throw, but the"));
     Console.println(
@@ -233,15 +213,14 @@ public final class Main {
             + Console.bold("The demo is NOT crashing."));
     Console.println(
         Console.dim(
-            "     (We send an invalid version string, expecting the API to return 400"
-                + " INVALID_VERSION_FORMAT.)"));
+            "     (We render a template that does not exist, expecting the API to return 404"
+                + " TEMPLATE_NOT_FOUND.)"));
     Console.println("");
 
-    ProjectModeInput bad =
-        ProjectModeInput.builder()
+    RenderInput bad =
+        RenderInput.builder()
             .project("getting-started")
-            .template("welcome")
-            .version("banana")
+            .template("does-not-exist")
             .data(Map.of())
             .build();
 
@@ -301,8 +280,8 @@ public final class Main {
     Console.println(Console.bold(Console.yellow("   No POLI_PAGE_API_KEY found.")));
     Console.println(rule);
     Console.println("");
-    Console.println("   This demo needs a test key (" + Console.cyan("pp_test_*") + ") to");
-    Console.println("   talk to the Poli Page API. Test keys never bill or send real");
+    Console.println("   This demo needs a sandbox key (" + Console.cyan("pp_sandbox_*") + ") to");
+    Console.println("   talk to the Poli Page API. Sandbox keys never bill or send real");
     Console.println("   documents.");
     Console.println("");
     Console.println(Console.bold("   How to get one:"));
@@ -313,7 +292,7 @@ public final class Main {
         Console.dim("        (replace {YOUR_ORG} with your org slug — visible in the"));
     Console.println(Console.dim("         dashboard URL when you're inside your organization)"));
     Console.println("     3. Click \"Create key\" and copy");
-    Console.println("        the value (starts with " + Console.cyan("pp_test_") + ").");
+    Console.println("        the value (starts with " + Console.cyan("pp_sandbox_") + ").");
     Console.println("");
     Console.println(
         "   Paste it below — we'll save it to " + Console.cyan(".env") + " (repo root) so");
@@ -324,13 +303,12 @@ public final class Main {
 
     BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
     System.out.print(
-        Console.bold("   Paste your pp_test_* key") + " (or Ctrl-C to cancel): ");
+        Console.bold("   Paste your pp_sandbox_* key") + " (or Ctrl-C to cancel): ");
     String line = in.readLine();
     String key = line == null ? "" : line.trim();
 
-    if (!key.startsWith("pp_test_")) {
-      Console.println(
-          "\n  " + Console.red("✗") + " Expected a key starting with `pp_test_`. Aborting.\n");
+    if (key.isEmpty()) {
+      Console.println("\n  " + Console.red("✗") + " No key entered. Aborting.\n");
       System.exit(1);
     }
 

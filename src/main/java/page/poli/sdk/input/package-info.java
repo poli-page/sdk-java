@@ -1,8 +1,7 @@
 /**
  * Input types for the Poli Page SDK's render namespace.
  *
- * <p>{@link page.poli.sdk.input.ProjectModeInput} addresses a stored project / template / version
- * by slug.
+ * <p>{@link page.poli.sdk.input.RenderInput} addresses a stored project / template by slug.
  */
 @NullMarked
 package page.poli.sdk.input;

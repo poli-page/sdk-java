@@ -1,47 +1,48 @@
 package page.poli.sdk.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ThumbnailOptionsTest {
 
   @Test
-  void builder_default_format_is_png() {
-    ThumbnailOptions o = ThumbnailOptions.builder().width(320).build();
-    assertThat(o.format()).isEqualTo(ThumbnailFormat.PNG);
+  void builder_with_no_option_leaves_every_component_unset() {
+    ThumbnailOptions o = ThumbnailOptions.builder().build();
+    assertThat(o.width()).isNull();
+    assertThat(o.format()).isNull();
     assertThat(o.quality()).isNull();
     assertThat(o.pages()).isNull();
+    assertThat(o.idempotencyKey()).isNull();
   }
 
   @Test
-  void builder_throws_when_width_missing() {
-    assertThatThrownBy(() -> ThumbnailOptions.builder().build())
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("width");
+  void unset_options_are_not_serialized() throws Exception {
+    String json =
+        JsonMapper.builder().build().writeValueAsString(ThumbnailOptions.builder().build());
+    assertThat(json).isEqualTo("{}");
   }
 
   @Test
-  void compact_constructor_rejects_zero_width() {
-    assertThatThrownBy(() -> new ThumbnailOptions(0, ThumbnailFormat.PNG, null, null, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("width");
+  void only_the_set_options_are_serialized() throws Exception {
+    String json =
+        JsonMapper.builder()
+            .build()
+            .writeValueAsString(ThumbnailOptions.builder().format(ThumbnailFormat.WEBP).build());
+    assertThat(json).isEqualTo("{\"format\":\"webp\"}");
   }
 
   @Test
-  void compact_constructor_rejects_negative_width() {
-    assertThatThrownBy(() -> new ThumbnailOptions(-1, ThumbnailFormat.PNG, null, null, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("width");
-  }
-
-  @Test
-  void quality_rejected_when_format_is_PNG() {
-    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.PNG, 80, null, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("JPEG");
+  void no_client_side_bounds_check() {
+    // The API owns the bounds (width 50–2000, quality 1–100 for jpeg only) and answers
+    // 400 VALIDATION_ERROR; the SDK forwards whatever the caller sets.
+    ThumbnailOptions o = new ThumbnailOptions(0, ThumbnailFormat.PNG, 500, List.of(0, -1), null);
+    assertThat(o.width()).isZero();
+    assertThat(o.quality()).isEqualTo(500);
+    assertThat(o.pages()).containsExactly(0, -1);
   }
 
   @Test
@@ -52,25 +53,10 @@ class ThumbnailOptionsTest {
   }
 
   @Test
-  void quality_rejected_outside_1_to_100() {
-    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 0, null, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("100");
-    assertThatThrownBy(() -> new ThumbnailOptions(320, ThumbnailFormat.JPEG, 101, null, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("100");
-  }
-
-  @Test
-  void pages_rejected_when_any_value_is_below_1() {
-    assertThatThrownBy(() -> ThumbnailOptions.builder().width(320).pages(List.of(1, 0, 3)).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("1-based");
-  }
-
-  @Test
-  void pages_accepts_valid_list() {
-    ThumbnailOptions o = ThumbnailOptions.builder().width(320).pages(List.of(1, 2, 3)).build();
+  void pages_are_defensively_copied() {
+    List<Integer> pages = new ArrayList<>(List.of(1, 2, 3));
+    ThumbnailOptions o = ThumbnailOptions.builder().pages(pages).build();
+    pages.add(4);
     assertThat(o.pages()).containsExactly(1, 2, 3);
   }
 
@@ -78,11 +64,13 @@ class ThumbnailOptionsTest {
   void thumbnail_format_serializes_to_lowercase() {
     assertThat(ThumbnailFormat.PNG.wireValue()).isEqualTo("png");
     assertThat(ThumbnailFormat.JPEG.wireValue()).isEqualTo("jpeg");
+    assertThat(ThumbnailFormat.WEBP.wireValue()).isEqualTo("webp");
   }
 
   @Test
   void thumbnail_format_deserializes_from_lowercase() {
     assertThat(ThumbnailFormat.fromWire("png")).isEqualTo(ThumbnailFormat.PNG);
     assertThat(ThumbnailFormat.fromWire("jpeg")).isEqualTo(ThumbnailFormat.JPEG);
+    assertThat(ThumbnailFormat.fromWire("webp")).isEqualTo(ThumbnailFormat.WEBP);
   }
 }

@@ -36,7 +36,7 @@ class HookEventsAsyncTest {
     List<RequestEvent> events = new ArrayList<>();
     PoliPageClient client =
         PoliPageClient.builder()
-            .apiKey("pp_test_x")
+            .apiKey("pp_sandbox_x")
             .baseUrl(URI.create(wm.getHttpBaseUrl()))
             .maxRetries(0)
             .onRequest(events::add)
@@ -64,7 +64,7 @@ class HookEventsAsyncTest {
     List<ResponseEvent> events = new ArrayList<>();
     PoliPageClient client =
         PoliPageClient.builder()
-            .apiKey("pp_test_x")
+            .apiKey("pp_sandbox_x")
             .baseUrl(URI.create(wm.getHttpBaseUrl()))
             .maxRetries(0)
             .onResponse(events::add)
