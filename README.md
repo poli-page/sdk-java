@@ -39,6 +39,8 @@ Gradle (Kotlin DSL), with `mavenLocal()` in `repositories`:
 implementation("page.poli:sdk:0.10.0")
 ```
 
+Prereleases: none has been published yet. Once one is on Maven Central (a version with a suffix such as `-RC1`, see [CONTRIBUTING.md](CONTRIBUTING.md#stable-vs-prerelease-channels)), Maven and Gradle resolve it only when you pin that exact version, e.g. `<version>X.Y.Z-RC1</version>` or `page.poli:sdk:X.Y.Z-RC1`.
+
 Requires Java 17 or later. Runtime dependencies: `org.slf4j:slf4j-api` and `com.fasterxml.jackson.core:jackson-databind` (JSON).
 
 ## Quick start
@@ -211,9 +213,11 @@ PoliPageClient client = PoliPageClient.builder()
 | `retryDelay`       | `Duration`                 | `500ms`                  | Base exponential-backoff delay |
 | `requestTimeout`   | `Duration`                 | `60s`                    | Per-attempt deadline |
 | `onRetry`          | `Consumer<RetryEvent>`     | null                     | Fires before each retry sleep |
-| `onError`          | `Consumer<Throwable>`      | null                     | Fires on terminal failure |
-| `onRequest`        | `Consumer<RequestEvent>`   | null                     | Fires before each HTTP attempt |
-| `onResponse`       | `Consumer<ResponseEvent>`  | null                     | Fires after each HTTP response |
+| `onError`          | `Consumer<Throwable>`      | null                     | Fires on a terminal transport failure of an API call |
+| `onRequest`        | `Consumer<RequestEvent>`   | null                     | Fires before each API attempt, retries included |
+| `onResponse`       | `Consumer<ResponseEvent>`  | null                     | Fires after each API response |
+
+The hooks cover calls to the Poli Page API only: the PDF download from the presigned URL is a single attempt outside the retry loop, and no hook fires for it.
 
 ## Error handling
 
@@ -304,7 +308,7 @@ PoliPageClient.builder()
     .build();
 ```
 
-Hooks are synchronous, optional, and exception-safe — a hook that throws never breaks the request. The events never carry the `Authorization` header.
+Hooks are synchronous, optional, and exception-safe — a hook that throws never breaks the request. The events never carry the `Authorization` header. They fire for API calls only, not for the presigned-URL PDF download.
 
 ## Retries & idempotency
 

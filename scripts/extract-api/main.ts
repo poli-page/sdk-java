@@ -50,7 +50,37 @@ interface Method {
   readonly exampleFile: string; // file name in examples/
 }
 
-const RENDER_ERRORS = ['VALIDATION_ERROR', 'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND', 'QUOTA_EXCEEDED', 'timeout', 'network_error', 'INTERNAL_ERROR'];
+// Per-method error codes: every code the method can raise, per the API
+// specification's errors of its route.
+//
+// Auth codes of every API call. The builder only rejects a blank key, so a key
+// without the `pp_` prefix reaches the API and gets MISSING_API_KEY; a purged
+// organization refuses every request.
+const AUTH_ERRORS = ['MISSING_API_KEY', 'INVALID_API_KEY', 'ORGANIZATION_PURGED'];
+// Org-state gates the API applies to every call that is not a GET.
+const WRITE_GATE_ERRORS = ['ORGANIZATION_PAYMENT_GRACE', 'ORGANIZATION_CANCELLED', 'ORGANIZATION_MIGRATING'];
+// Server and transport codes of every API call. `unknown_error` is an error
+// body without a code; `aborted` is a caller interrupt.
+const SERVER_ERRORS = ['STORAGE_ACCESS_DENIED', 'INTERNAL_ERROR', 'unknown_error', 'timeout', 'network_error', 'aborted'];
+// POST /v1/render. The per-credential rate limiter is mounted on /v1/render*
+// only. MISSING_DATA, MISSING_TEMPLATE_SLUG, PROJECT_REQUIRED_FOR_DOCUMENT and
+// ENVIRONMENT_MISMATCH are left out: RenderInput always sends a non-blank
+// project and template and a data object, and never an environment.
+// TEMPLATE_UNSAFE (400) is not one of the SDK's known codes; it reaches the
+// caller unchanged like any unknown code.
+const RENDER_DOCUMENT_ERRORS = [
+  ...AUTH_ERRORS, ...WRITE_GATE_ERRORS,
+  'RATE_LIMIT_EXCEEDED', 'VALIDATION_ERROR', 'RENDER_BODY_TOO_LARGE',
+  'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND',
+  'TEMPLATE_ERROR', 'EMPTY_DOCUMENT', 'DOCUMENT_TOO_LARGE', 'RENDER_TIMEOUT',
+  'QUOTA_EXCEEDED', 'OVERAGE_CAP_EXCEEDED', 'PUBLISH_IN_PROGRESS',
+  ...SERVER_ERRORS, 'invalid_response',
+];
+// The render, then the presigned-URL download (its transport failures are the
+// timeout / network_error / aborted already listed).
+const RENDER_PDF_ERRORS = [...RENDER_DOCUMENT_ERRORS, 'download_failed'];
+// GET /v1/documents/:id and /preview: reads, so no write gate and no rate limiter.
+const DOCUMENT_READ_ERRORS = [...AUTH_ERRORS, 'DOCUMENT_NOT_FOUND', 'FORBIDDEN', 'DOCUMENT_GONE', ...SERVER_ERRORS];
 
 const METHODS: readonly Method[] = [
   {
@@ -60,7 +90,7 @@ const METHODS: readonly Method[] = [
     summary: 'Render the given input as a PDF and return the raw bytes. Two HTTP hops under the hood: POST /v1/render to produce a stored document, then GET presignedPdfUrl to fetch the bytes.',
     params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`byte[]` — the rendered PDF bytes.',
-    errorCodes: RENDER_ERRORS,
+    errorCodes: RENDER_PDF_ERRORS,
     exampleFile: 'render-pdf.java',
   },
   {
@@ -70,7 +100,7 @@ const METHODS: readonly Method[] = [
     summary: 'Render the given input as a PDF and return a streaming body. Use this for large documents to avoid buffering the full byte array in memory. The returned InputStream owns the underlying HTTP connection — wrap the call in try-with-resources.',
     params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`InputStream` reading the PDF body — caller must close.',
-    errorCodes: RENDER_ERRORS,
+    errorCodes: RENDER_PDF_ERRORS,
     exampleFile: 'render-pdf-stream.java',
   },
   {
@@ -80,7 +110,7 @@ const METHODS: readonly Method[] = [
     summary: 'Render the given input and return the stored document descriptor without downloading the PDF. Useful when you want to persist documentId and download on demand later.',
     params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`DocumentDescriptor` — includes documentId, presignedPdfUrl (15-minute TTL), metadata.',
-    errorCodes: ['VALIDATION_ERROR', 'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND', 'QUOTA_EXCEEDED', 'INTERNAL_ERROR'],
+    errorCodes: RENDER_DOCUMENT_ERRORS,
     exampleFile: 'render-document.java',
   },
   {
@@ -90,7 +120,7 @@ const METHODS: readonly Method[] = [
     summary: 'Retrieve a stored document descriptor with a fresh presignedPdfUrl.',
     params: [{ name: 'id', type: 'String', required: true, description: 'The document ID — non-null, non-blank.' }],
     returns: '`DocumentDescriptor` — with a freshly signed presignedPdfUrl.',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: [...DOCUMENT_READ_ERRORS, 'invalid_response'],
     exampleFile: 'documents-get.java',
   },
   {
@@ -100,7 +130,7 @@ const METHODS: readonly Method[] = [
     summary: 'Fetch the stored document\'s HTML preview body and page count.',
     params: [{ name: 'id', type: 'String', required: true, description: 'The document ID.' }],
     returns: '`DocumentPreviewResult` — html plus pageCount (from the X-Document-Page-Count header).',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: DOCUMENT_READ_ERRORS,
     exampleFile: 'documents-preview.java',
   },
   {
@@ -113,7 +143,12 @@ const METHODS: readonly Method[] = [
       { name: 'options', type: 'ThumbnailOptions', required: false, description: 'Optional width, format (jpeg, webp, png), quality (jpeg only) and page filter. Unset options are not sent.' },
     ],
     returns: '`List<Thumbnail>` — base64-encoded images, one per requested page.',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'VALIDATION_ERROR', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: [
+      ...AUTH_ERRORS, ...WRITE_GATE_ERRORS,
+      'DOCUMENT_NOT_FOUND', 'FORBIDDEN', 'DOCUMENT_GONE', 'THUMBNAILS_NOT_AVAILABLE',
+      'VALIDATION_ERROR', 'QUOTA_EXCEEDED', 'OVERAGE_CAP_EXCEEDED',
+      ...SERVER_ERRORS, 'invalid_response',
+    ],
     exampleFile: 'documents-thumbnails.java',
   },
   {
@@ -123,7 +158,10 @@ const METHODS: readonly Method[] = [
     summary: 'Soft-delete a stored document. Idempotent: deleting an already-deleted document also succeeds (204). Subsequent get / preview calls throw PoliPageGoneException (HTTP 410, DOCUMENT_GONE).',
     params: [{ name: 'id', type: 'String', required: true, description: 'The document ID.' }],
     returns: '`void` — no body on success.',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: [
+      ...AUTH_ERRORS, ...WRITE_GATE_ERRORS,
+      'DOCUMENT_NOT_FOUND', 'FORBIDDEN', 'ENVIRONMENT_PROTECTED', ...SERVER_ERRORS,
+    ],
     exampleFile: 'documents-delete.java',
   },
   {
@@ -136,7 +174,7 @@ const METHODS: readonly Method[] = [
       { name: 'path', type: 'Path', required: true, description: 'Destination file path — non-null. Existing file is overwritten.' },
     ],
     returns: '`void` — the file is closed before the method returns, even on failure.',
-    errorCodes: [...RENDER_ERRORS, 'io_error'],
+    errorCodes: [...RENDER_PDF_ERRORS, 'io_error'],
     exampleFile: 'render-to-file.java',
   },
 ];
@@ -149,10 +187,11 @@ const SDK_INTERNAL_ERRORS = [
   { code: 'download_failed', when: 'Presigned PDF URL fetch returned non-2xx (typically expired URL).' },
   { code: 'io_error', when: 'Local file write failed inside renderToFile.' },
   { code: 'invalid_response', when: 'The API returned a 2xx response whose body could not be parsed as the expected type.' },
+  { code: 'unknown_error', when: 'The API returned an error body with neither a code nor an error field. The HTTP status is kept.' },
 ];
 
 const API_ERRORS = [
-  { code: 'MISSING_API_KEY', when: 'No API key in the request. HTTP 401.' },
+  { code: 'MISSING_API_KEY', when: 'No Bearer pp_* API key in the request, which includes a key without the pp_ prefix. HTTP 401.' },
   { code: 'INVALID_API_KEY', when: 'The API key is malformed or revoked. HTTP 401.' },
   { code: 'FORBIDDEN', when: 'The key does not have access to the requested resource. HTTP 403.' },
   { code: 'ENVIRONMENT_PROTECTED', when: 'The target environment is protected. HTTP 403.' },
@@ -199,7 +238,7 @@ const TYPES = [
   { name: 'ThumbnailOptions', kind: 'record', summary: 'Options for documents().thumbnails. Every option is optional (API defaults: 400 px wide jpeg); quality applies to jpeg only; pages restricts rendering. No client-side bounds check.' },
   { name: 'ThumbnailFormat', kind: 'enum', summary: 'PNG, JPEG or WEBP. Wire form is lowercase.' },
   { name: 'RetryEvent', kind: 'record', summary: 'Event passed to the onRetry hook before each retry sleep. attempt, delay, statusCode, reason.' },
-  { name: 'PoliPageErrorCode', kind: 'class', summary: 'String constants for every wire error code plus SDK-internal codes.' },
+  { name: 'PoliPageErrorCode', kind: 'class', summary: 'String constants for the known API error codes plus SDK-internal codes. The code is an open set: an unknown code reaches you unchanged.' },
 ];
 
 function readVersionFromPom(): string {
@@ -377,7 +416,19 @@ function metaJson(version: string): string {
   }, null, 2) + '\n';
 }
 
+// Every code on a method page must be on the errors page, once.
+function assertMethodErrorCodes(): void {
+  const documented = new Set([...SDK_INTERNAL_ERRORS, ...API_ERRORS].map((e) => e.code));
+  for (const m of METHODS) {
+    const undocumented = m.errorCodes.filter((code) => !documented.has(code));
+    if (undocumented.length > 0 || new Set(m.errorCodes).size !== m.errorCodes.length) {
+      throw new Error(`extractor: ${m.slug} error codes are duplicated or not on the errors page (${undocumented.join(', ')})`);
+    }
+  }
+}
+
 function run(): void {
+  assertMethodErrorCodes();
   const version = readVersionFromPom();
 
   // 1. Clear previous output.

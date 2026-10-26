@@ -13,9 +13,11 @@ The `PoliPageClient.Builder` accepts fluent setters for every option. Only `apiK
 - `maxRetries(int)` — maximum retry attempts for retryable errors. Defaults to `2` (three total attempts).
 - `retryDelay(Duration)` — initial retry backoff. Defaults to `Duration.ofMillis(500)`. Doubles each attempt with jitter.
 - `onRetry(Consumer<RetryEvent>)` — fired just before each retry sleep. Use for metrics, traces, structured logs.
-- `onError(Consumer<Throwable>)` — fired when the SDK is about to surface a terminal transport failure.
-- `onRequest(Consumer<RequestEvent>)` — fired before each HTTP attempt (`method`, `url`, `attempt`).
-- `onResponse(Consumer<ResponseEvent>)` — fired after each HTTP response (`status`, `requestId`, `durationMs`).
+- `onError(Consumer<Throwable>)` — fired when the SDK is about to surface a terminal transport failure of an API call.
+- `onRequest(Consumer<RequestEvent>)` — fired before each API attempt, retries included (`method`, `url`, `attempt`).
+- `onResponse(Consumer<ResponseEvent>)` — fired after each API response (`status`, `requestId`, `durationMs`).
+
+The four hooks cover calls to the Poli Page API only. The PDF download from the presigned URL (`render().pdf`, `render().pdfStream`, `renderToFile`, `documents().downloadPdf`) is a single attempt outside the retry loop: no hook fires for it.
 
 ## Example
 
