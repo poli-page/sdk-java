@@ -5,12 +5,12 @@ description: Upgrade guides for moving between major versions of the Java SDK.
 
 This page tracks breaking changes between major versions of `page.poli:sdk`. For the full per-release diff, see the [changelog](../changelog/).
 
-## v1.0
+## v0.10.0
 
-The first stable release. The full v1.0 surface is documented in [`MIGRATION.md` in the repo](https://github.com/poli-page/sdk-java/blob/main/MIGRATION.md).
+The first release of the Java SDK, on the environments contract. The full entry is in [`MIGRATION.md` in the repo](https://github.com/poli-page/sdk-java/blob/main/MIGRATION.md).
 
-Short version: the client is constructed via `PoliPageClient.builder()`, every render call goes through a facade (`render().pdf`, `render().pdfStream`, `render().document`, `render().preview`), every PDF-producing method requires `ProjectModeInput`, and inline mode (`InlineModeInput`) is supported only on `render().preview`. Async counterparts live on `renderAsync()` and `documentsAsync()` and return `CompletableFuture<T>`.
+Short version: an API key carries its environment (`pp_{env}_…`, e.g. `pp_sandbox_…`) and a render uses the project's copy published in that environment. `RenderInput` (formerly `ProjectModeInput`) is the only render input and has no `version`. `render().preview` and inline-HTML rendering are gone: preview templates and inline HTML in the playground, [play.poli.page](https://play.poli.page). `documents().preview(id)` stays. Error codes come from the API verbatim (e.g. `TEMPLATE_NOT_FOUND`, `PROJECT_NOT_IN_ENVIRONMENT`).
 
 ## See also
 - [Changelog](../changelog/)
-- [Render modes](../../concepts/render-modes/)
+- [Render input](../../concepts/render-modes/)

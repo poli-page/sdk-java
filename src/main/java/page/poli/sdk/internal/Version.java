@@ -8,7 +8,7 @@ package page.poli.sdk.internal;
 public final class Version {
 
   /** Current SDK version. */
-  public static final String VALUE = "1.0.0-SNAPSHOT";
+  public static final String VALUE = "0.10.0";
 
   private Version() {}
 }

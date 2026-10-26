@@ -1,11 +1,9 @@
 # Poli Page SDK for Java
 
-[![Maven](https://img.shields.io/maven-central/v/page.poli/sdk?style=flat&logo=openjdk&logoColor=ffffff&label=Maven)](https://central.sonatype.com/artifact/page.poli/sdk)
 [![Ci](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/ci.yml?branch=main&style=flat&logo=githubactions&logoColor=ffffff&label=Ci)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
 [![Codeql](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/codeql.yml?branch=main&style=flat&logo=github&logoColor=ffffff&label=Codeql)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
 [![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-java?style=flat&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-java)
 [![Java](https://img.shields.io/badge/Java-17%2B-blue?style=flat&logo=openjdk&logoColor=ffffff)](https://adoptium.net/)
-[![Javadoc](https://img.shields.io/badge/Javadoc-online-blue?style=flat&logo=openjdk&logoColor=ffffff)](https://javadoc.io/doc/page.poli/sdk)
 [![Deps](https://img.shields.io/badge/Deps-up%20to%20date-brightgreen?style=flat&logo=openjdk&logoColor=ffffff)](https://github.com/poli-page/sdk-java/network/dependencies)
 [![Docs](https://img.shields.io/badge/Docs-online-brightgreen?style=flat&logo=readthedocs&logoColor=ffffff)](https://poli-page.github.io/sdk-java/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat&logo=gnu&logoColor=ffffff)](LICENSE)
@@ -13,46 +11,49 @@
 Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 
 → **Documentation**: **<https://poli-page.github.io/sdk-java/>**
-→ API reference on javadoc.io: <https://javadoc.io/doc/page.poli/sdk>
+→ API reference: <https://poli-page.github.io/sdk-java/reference/client/>
 
 ## Install
 
-Maven:
+`page.poli:sdk` is not published yet: build it from source. It is not on Maven Central, so the coordinates below resolve only from your local Maven repository (`~/.m2`) once you have installed it.
+
+```bash
+git clone https://github.com/poli-page/sdk-java.git
+cd sdk-java
+./mvnw -B install -DskipTests
+```
+
+Then depend on the installed version. Maven:
 
 ```xml
 <dependency>
     <groupId>page.poli</groupId>
     <artifactId>sdk</artifactId>
-    <version>1.0.0</version>
+    <version>0.10.0</version>
 </dependency>
 ```
 
-Gradle (Kotlin DSL):
+Gradle (Kotlin DSL), with `mavenLocal()` in `repositories`:
 
 ```kotlin
-implementation("page.poli:sdk:1.0.0")
+implementation("page.poli:sdk:0.10.0")
 ```
 
-Gradle (Groovy):
-
-```groovy
-implementation 'page.poli:sdk:1.0.0'
-```
-
-Requires Java 17 or later. Runtime dependencies: `org.slf4j:slf4j-api` (logging facade) and `com.fasterxml.jackson.core:jackson-databind` (JSON).
+Requires Java 17 or later. Runtime dependencies: `org.slf4j:slf4j-api` and `com.fasterxml.jackson.core:jackson-databind` (JSON).
 
 ## Quick start
 
-### Async
+### Render a template by slug
+
+Set `POLI_PAGE_API_KEY` to a `sandbox` key of a fresh organization (`pp_sandbox_…`, see [Authentication & environments](#authentication--environments)), then:
 
 ```java
 import page.poli.sdk.PoliPageClient;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 public class Main {
     public static void main(String[] args) throws Exception {
@@ -60,36 +61,58 @@ public class Main {
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
             .build();
 
-        CompletableFuture<byte[]> future = client.renderAsync().pdf(ProjectModeInput.builder()
+        byte[] pdf = client.render().pdf(RenderInput.builder()
             .project("getting-started")
             .template("welcome")
-            .version("1.0.0")
-            .data(Map.of("name", "World"))
+            .data(Map.of("name", "SDK Demo"))
             .build());
 
-        byte[] pdf = future.join();
         Files.write(Path.of("welcome.pdf"), pdf);
-        // pdf is a byte[] of the rendered PDF document
     }
 }
 ```
 
-Every Poli Page org comes pre-provisioned with a `getting-started/welcome` template, so the snippet above runs as-is the moment you have an API key. Swap the slugs once you've pushed your own templates with the `poli` CLI.
+Without `baseUrl(...)`, the client targets `https://api.poli.page`. The SDK does not read environment variables: resolve the key (and, if you need one, the host) in your own code and pass them to the builder.
 
-### Blocking
+Every organization gets a `getting-started` project, published into its `sandbox` environment when the organization is created, with a `welcome` template. A sandbox key renders it with no setup, so the snippet above runs as-is on a fresh organization. It is a normal, editable project: in an organization that renamed it, deleted it or removed it from `sandbox`, the API answers `404 PROJECT_NOT_FOUND` or `404 PROJECT_NOT_IN_ENVIRONMENT`, so use a fresh organization to follow along.
+
+There is no version to pick: a render uses the project's copy published in the API key's environment. For your own templates, publish the project to the environment of the key you render with, then swap the slugs:
 
 ```java
-byte[] pdf = client.render().pdf(ProjectModeInput.builder()
+byte[] pdf = client.render().pdf(RenderInput.builder()
     .project("billing")
     .template("invoice")
-    .version("1.0.0")
-    .data(Map.of("invoiceNumber", "INV-001"))
+    .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
     .build());
-
-Files.write(Path.of("invoice.pdf"), pdf);
 ```
 
-Both surfaces share the same `PoliPageClient` — `client.render()` returns the blocking facade, `client.renderAsync()` returns the `CompletableFuture` facade. They sit on top of the same `java.net.http.HttpClient` connection pool.
+To preview a template or render inline HTML while you design it, use the playground: https://play.poli.page. The API and this SDK render published templates only.
+
+### Async
+
+`client.renderAsync()` exposes the same methods, each returning a `CompletableFuture`:
+
+```java
+CompletableFuture<byte[]> future = client.renderAsync().pdf(RenderInput.builder()
+    .project("getting-started")
+    .template("welcome")
+    .data(Map.of("name", "SDK Demo"))
+    .build());
+
+byte[] pdf = future.join();
+```
+
+Both surfaces share the same `PoliPageClient`: `client.render()` returns the blocking facade, `client.renderAsync()` the `CompletableFuture` facade. They sit on top of the same `java.net.http.HttpClient` connection pool.
+
+### Try it locally — runnable demo
+
+The repo ships an end-to-end demo that exercises every public method against the real API:
+
+```bash
+./scripts/demo
+```
+
+It reads `POLI_PAGE_API_KEY` and the optional `POLI_PAGE_BASE_URL`. Without a key, the first run prompts for a `sandbox` key (`pp_sandbox_…`) and saves it to `.env`; subsequent runs are silent. The demo renders `getting-started`/`welcome` and walks nine steps: `render().pdf` → `render().pdfStream` → `renderToFile` → `render().document` → `documents().get` → `documents().thumbnails` → `documents().preview` → `documents().delete` → `not-found` (a render of a template that does not exist, caught as `PoliPageException` with code `TEMPLATE_NOT_FOUND`). See [`examples/demo/README.md`](examples/demo/README.md) for details.
 
 ## Working with stored documents
 
@@ -97,10 +120,9 @@ Every render produces a stored document, accessible via `documentId` for later d
 
 ```java
 // 1. Render and store
-DocumentDescriptor doc = client.render().document(ProjectModeInput.builder()
+DocumentDescriptor doc = client.render().document(RenderInput.builder()
     .project("billing")
     .template("invoice")
-    .version("1.0.0")
     .data(Map.of("invoiceNumber", "INV-001"))
     .metadata(Map.of("customerId", "cust_123"))
     .build());
@@ -110,7 +132,7 @@ db.invoices().update("INV-001", doc.documentId());
 
 // 3. Later, fetch a fresh presigned URL + download
 DocumentDescriptor fresh = client.documents().get(doc.documentId());
-byte[] pdf = fresh.downloadPdf();
+byte[] pdf = client.documents().downloadPdf(fresh);
 
 // 4. Generate thumbnails (Starter+ tier)
 List<Thumbnail> thumbs = client.documents().thumbnails(doc.documentId(),
@@ -123,19 +145,27 @@ List<Thumbnail> thumbs = client.documents().thumbnails(doc.documentId(),
 client.documents().delete(doc.documentId());
 ```
 
-The presigned URL has a ~15-minute TTL. If `downloadPdf()` throws `PoliPageDownloadException`, call `documents().get(id)` to refresh and retry.
+The presigned URL has a ~15-minute TTL. If `downloadPdf(...)` throws `PoliPageDownloadException`, call `documents().get(id)` to refresh and retry.
 
 ## Authentication & environments
 
-The API key is read from the `POLI_PAGE_API_KEY` environment variable by default, or passed via `PoliPageClient.builder().apiKey(...)`. The mode is determined by the key prefix:
+An API key belongs to exactly one environment of your organization, and its text names that environment: a key is `pp_{env}_{32 lowercase hex}`, matching
 
-| Prefix       | Mode                                                               |
-| ------------ | ------------------------------------------------------------------ |
-| `pp_test_…`  | Sandbox — not billed, generous rate limits                          |
-| `pp_live_…`  | Live — billed, production rate limits                              |
-| `pp_sa_…`    | Service-account key; environment matches the SA's configuration    |
+```text
+^pp_(?=[a-z][a-z0-9-]{0,19}_)[a-z][a-z0-9]*(?:-[a-z0-9]+)*_[0-9a-f]{32}$
+```
 
-All prefixes hit the same endpoint (`https://api.poli.page`). The SDK passes the key as a Bearer token and never inspects the prefix.
+The API resolves the environment from the key and renders the project's copy published there; the SDK never sends an environment.
+
+| Environment                           | Key            | Watermark | Counted |
+| ------------------------------------- | -------------- | --------- | ------- |
+| `sandbox` (every org)                 | `pp_sandbox_…` | yes       | no      |
+| `live` (every org, deletable on Pro+) | `pp_live_…`    | no        | yes     |
+| created on Pro+ (e.g. `staging`)      | `pp_staging_…` | no        | yes     |
+
+"Counted" means the render counts toward the organization's monthly PDF quota. `sandbox` renders are watermarked, are not counted, and their documents expire 30 days after creation. There is no watermark option: a template that wants a watermark outside `sandbox` uses the `poli-watermark` class.
+
+Standard and service keys share this one format. Pass the key with `PoliPageClient.builder().apiKey(...)`; the samples read it from the `POLI_PAGE_API_KEY` environment variable. Every key hits the same endpoint, `https://api.poli.page` by default or whatever you pass as `baseUrl` (see [Configuration](#configuration)). The SDK passes the key through as a Bearer token and only checks that it is not blank.
 
 ## Methods
 
@@ -145,22 +175,19 @@ The blocking surface (`client.render()`, `client.documents()`) and the async sur
 | ------------------------------------------------------------ | -------------------------------------- | ----------- |
 | `client.render().pdf(input)`                                 | `byte[]`                               | Render a PDF, return bytes |
 | `client.render().pdfStream(input)`                           | `InputStream`                          | Render and stream the response |
-| `client.render().preview(input)`                             | `PreviewResult`                        | Paginated HTML preview |
 | `client.render().document(input)`                            | `DocumentDescriptor`                   | Render and return descriptor (skip auto-download) |
 | `client.documents().get(id)`                                 | `DocumentDescriptor`                   | Retrieve a stored document |
 | `client.documents().preview(id)`                             | `DocumentPreviewResult`                | Stored document's paginated HTML |
-| `client.documents().thumbnails(id, options)`                 | `List<Thumbnail>`                      | Page thumbnails (PNG/JPEG, base64) |
+| `client.documents().thumbnails(id[, options])`               | `List<Thumbnail>`                      | Page thumbnails (JPEG/WebP/PNG, base64) |
 | `client.documents().delete(id)`                              | `void`                                 | Soft-delete a stored document |
-| `descriptor.downloadPdf()`                                   | `byte[]`                               | Fetch bytes from the descriptor's presigned URL |
-| `PoliPageClient.renderToFile(input, path)`                   | `void`                                 | Render and stream to disk |
+| `client.documents().downloadPdf(descriptor)`                 | `byte[]`                               | Fetch bytes from the descriptor's presigned URL |
+| `client.renderToFile(input, path)`                           | `void`                                 | Render and stream to disk (`renderToFileAsync` returns `CompletableFuture<Void>`) |
 
-`render().pdf(...)`, `pdfStream(...)`, and `document(...)` accept `ProjectModeInput` only — passing `InlineModeInput` is a compile-time error (the parameter type is `ProjectModeInput`, not the sealed `RenderInput`). `render().preview(...)` accepts the sealed `RenderInput`, satisfied by both modes.
-
-Every method accepts an optional final `RequestOptions` argument for per-call overrides (idempotency key, request timeout, additional headers).
+Every render method takes a `RenderInput`: a project and one of its templates, by slug, plus the `data` that fills the template (`metadata`, `format`, `orientation` and `locale` are optional). The request body holds only those fields; there is no `version`. To pin the `Idempotency-Key` of a render, set `RenderInput.builder().idempotencyKey(...)`.
 
 ## Configuration
 
-All options flow through `PoliPageClient.builder()`. Per-call options (`idempotencyKey`, `requestTimeout`, `headers`) are passed via the optional `RequestOptions` argument to individual methods.
+All options flow through `PoliPageClient.builder()`.
 
 ```java
 PoliPageClient client = PoliPageClient.builder()
@@ -169,35 +196,24 @@ PoliPageClient client = PoliPageClient.builder()
     .maxRetries(2)
     .retryDelay(Duration.ofMillis(500))
     .requestTimeout(Duration.ofSeconds(60))
-    .httpClient(HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(10))
-        .build())
-    .logger(LoggerFactory.getLogger(PoliPageClient.class))
     .onRetry(event -> metrics.counter("poli.retry")
         .tag("attempt", String.valueOf(event.attempt()))
         .increment())
     .onError(error -> sentry.captureException(error))
     .build();
-
-// Per-call overrides
-byte[] pdf = client.render().pdf(input, RequestOptions.builder()
-    .idempotencyKey("inv-INV-001")
-    .requestTimeout(Duration.ofSeconds(5))
-    .header("X-Trace-Id", traceId)
-    .build());
 ```
 
 | Option            | Type                       | Default                  | Description |
 | ----------------- | -------------------------- | ------------------------ | ----------- |
-| `apiKey`           | `String`                   | (required)               | `pp_test_*`, `pp_live_*`, or `pp_sa_*` API key |
+| `apiKey`           | `String`                   | (required)               | API key of one environment, `pp_{env}_…` (e.g. `pp_sandbox_…`); see [Authentication & environments](#authentication--environments) |
 | `baseUrl`          | `URI`                      | `https://api.poli.page`  | API base URL |
 | `maxRetries`       | `int`                      | `2`                      | Retry budget on top of the initial attempt |
 | `retryDelay`       | `Duration`                 | `500ms`                  | Base exponential-backoff delay |
-| `requestTimeout`   | `Duration`                 | `60s`                    | Per-request deadline (overridable per call) |
-| `httpClient`       | `java.net.http.HttpClient` | new instance             | Inject custom transport / executor |
-| `logger`           | `org.slf4j.Logger`         | `NOPLogger`              | One DEBUG/attempt, WARN/retry, ERROR/terminal |
+| `requestTimeout`   | `Duration`                 | `60s`                    | Per-attempt deadline |
 | `onRetry`          | `Consumer<RetryEvent>`     | null                     | Fires before each retry sleep |
 | `onError`          | `Consumer<Throwable>`      | null                     | Fires on terminal failure |
+| `onRequest`        | `Consumer<RequestEvent>`   | null                     | Fires before each HTTP attempt |
+| `onResponse`       | `Consumer<ResponseEvent>`  | null                     | Fires after each HTTP response |
 
 ## Error handling
 
@@ -224,14 +240,16 @@ try {
 Exception hierarchy:
 
 - `PoliPageException extends RuntimeException` — base type, thrown on any API failure.
-- `PoliPageAuthException` — 401 / 403. Covers `Unauthorized`, `Forbidden`.
-- `PoliPageNotFoundException` — 404. Covers `NotFound`, `VersionNotFound`, `DocumentNotFound`.
-- `PoliPageGoneException` — 410. Document was soft-deleted.
+- `PoliPageAuthException` — 401 / 403 (e.g. `INVALID_API_KEY`, `ENVIRONMENT_PROTECTED`, `ORGANIZATION_PAYMENT_GRACE`).
+- `PoliPageNotFoundException` — 404 (`PROJECT_NOT_FOUND`, `PROJECT_NOT_IN_ENVIRONMENT`, `TEMPLATE_NOT_FOUND`, `DOCUMENT_NOT_FOUND`).
+- `PoliPageGoneException` — 410 (`DOCUMENT_GONE`: the document was deleted).
 - `PoliPageValidationException` — 400 / 422. Bad input payload.
 - `PoliPageRateLimitException` — 429. Exposes `retryAfter()`.
-- `PoliPagePaymentRequiredException` — 402. Subscription has unpaid invoices.
 - `PoliPageNetworkException` — DNS / TCP / TLS / timeout. Retryable.
 - `PoliPageDownloadException` — presigned S3 URL fetch failed (commonly URL expiry).
+- `PoliPageInvalidOptionsException` — the client builder was given invalid options (e.g. no `apiKey`).
+
+`code()` is the API's code verbatim (compare against the constants in `PoliPageErrorCode`); a code the SDK does not know passes through unchanged.
 
 `PoliPageException` is a `RuntimeException` so callers can choose where to handle it — Java's checked-exception model would force every call site to declare or catch otherwise, which doesn't match modern Java SDK practice (see Stripe Java, AWS SDK v2, Google Cloud client libraries).
 
@@ -241,12 +259,13 @@ Async callers receive the exception wrapped in `CompletionException`: unwrap wit
 
 ### Blocking surface
 
-Per-request timeout via `PoliPageClientOptions.requestTimeout` (default 60s) or per-call `RequestOptions.requestTimeout`. When the timeout expires, the SDK throws `PoliPageException` with `code() == PoliPageErrorCode.TIMEOUT`.
+Per-attempt timeout via the builder's `requestTimeout` (default 60s). When the timeout expires and the retry budget is spent, the SDK throws `PoliPageException` with `code() == PoliPageErrorCode.TIMEOUT`.
 
 ```java
-byte[] pdf = client.render().pdf(input, RequestOptions.builder()
+PoliPageClient client = PoliPageClient.builder()
+    .apiKey(System.getenv("POLI_PAGE_API_KEY"))
     .requestTimeout(Duration.ofSeconds(5))
-    .build());
+    .build();
 ```
 
 For blocking thread cancellation, interrupt the worker thread — the SDK propagates `InterruptedException` (wrapped in `PoliPageException` with `code() == PoliPageErrorCode.ABORTED`). Caller-aborted operations are never retried.
@@ -269,21 +288,15 @@ future
 
 ## Observability
 
-The SDK integrates with the SLF4J facade:
-
-```java
-PoliPageClient client = PoliPageClient.builder()
-    .apiKey(System.getenv("POLI_PAGE_API_KEY"))
-    .logger(LoggerFactory.getLogger(PoliPageClient.class))
-    .build();
-```
-
-One DEBUG line per HTTP attempt, one WARN per retry, one ERROR per terminal failure. The `Authorization` header is never logged.
-
-For SDK-level events, register hooks:
+Register hooks on the builder to feed your own logger, metrics or tracing:
 
 ```java
 PoliPageClient.builder()
+    .apiKey(System.getenv("POLI_PAGE_API_KEY"))
+    .onRequest(event -> log.debug("→ {} {} (attempt {})",
+        event.method(), event.url(), event.attempt()))
+    .onResponse(event -> log.debug("← {} in {}ms requestId={}",
+        event.status(), event.durationMs(), event.requestId()))
     .onRetry(event -> metrics.counter("poli.retry")
         .tag("attempt", String.valueOf(event.attempt()))
         .increment())
@@ -291,16 +304,17 @@ PoliPageClient.builder()
     .build();
 ```
 
-Hooks are synchronous, optional, and exception-safe — a hook that throws never breaks the request. For full HTTP-level inspection (headers + body), inject a custom `java.net.http.HttpClient` and add a `java.net.http.HttpClient.Builder.proxy(...)` or a logging filter.
-
-The SDK emits OpenTelemetry spans via the instrumentation API under the source name `page.poli.sdk` — register it on your `SdkTracerProvider` to capture spans automatically.
+Hooks are synchronous, optional, and exception-safe — a hook that throws never breaks the request. The events never carry the `Authorization` header.
 
 ## Retries & idempotency
 
-The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backoff is exponential (`retryDelay × 2^N`) with jitter in `[0.5, 1.5)`, capped at the server's `Retry-After` header when provided (max 30s). Every POST sends an auto-generated `Idempotency-Key` (UUID v4); pass `RequestOptions.idempotencyKey(...)` to override:
+The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backoff is exponential (`retryDelay × 2^N`) with jitter in `[0.5, 1.5)`, capped at the server's `Retry-After` header when provided (max 30s). Every POST sends an auto-generated `Idempotency-Key` (UUID v4); set `idempotencyKey(...)` on the `RenderInput` builder to choose it yourself:
 
 ```java
-client.render().pdf(input, RequestOptions.builder()
+client.render().pdf(RenderInput.builder()
+    .project("billing")
+    .template("invoice")
+    .data(Map.of("invoiceNumber", "INV-001"))
     .idempotencyKey("inv-INV-001")
     .build());
 ```
@@ -309,27 +323,26 @@ Disable retries by setting `.maxRetries(0)` on the client builder.
 
 ## Type system
 
-The SDK ships full Javadoc for every public symbol — they surface in IDE hover and feed the published API reference on javadoc.io.
+The SDK ships full Javadoc for every public symbol — they surface in IDE hover (`./mvnw javadoc:javadoc` builds it locally).
 
-- Input types (`ProjectModeInput`, `InlineModeInput`) are records sealed by the abstract `RenderInput` permitted-subtypes list. External types cannot extend it.
-- Methods that require project mode (`pdf`, `pdfStream`, `document`) accept `ProjectModeInput` directly — passing `InlineModeInput` is a compile-time error.
-- Nullable wire fields use `Optional<T>` on accessors for the boundary cases where present-vs-null matters; primitives use boxed types (`Long`, `Integer`) when nullable.
+- `RenderInput` is a record built with `RenderInput.builder()`; it is the only render input. `project`, `template` and `data` are required, and `build()` throws `NullPointerException` when one is missing.
+- `PoliPageException` is a sealed class: pattern-match against its eight final subclasses plus the base.
+- Nullable wire fields are `@Nullable` record components; primitives use boxed types (`Integer`) when nullable.
 - Public types are annotated with JSpecify `@NullMarked` / `@Nullable` so IDEs and Kotlin consumers get accurate nullability information.
 
 Consumers should enable `errorprone` or `-Xlint:all -Werror` in their build to surface the SDK's nullability contract.
 
 ## Concurrency & thread-safety
 
-`PoliPageClient` is immutable after `build()` and thread-safe. Share **one instance per process** across all threads — the underlying `java.net.http.HttpClient` pools connections automatically and is the BCL's recommended sharing model.
+`PoliPageClient` is immutable after `build()` and thread-safe. Share **one instance per process** across all threads — the underlying `java.net.http.HttpClient` pools connections automatically.
 
 Parallel requests fan out cleanly via `CompletableFuture.allOf`:
 
 ```java
 List<CompletableFuture<DocumentDescriptor>> tasks = invoices.stream()
-    .map(invoice -> client.renderAsync().document(ProjectModeInput.builder()
+    .map(invoice -> client.renderAsync().document(RenderInput.builder()
         .project("billing")
         .template("invoice")
-        .version("1.0.0")
         .data(invoice.toData())
         .build()))
     .toList();
@@ -339,23 +352,21 @@ CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0]))
     .thenAccept(results -> { /* … */ });
 ```
 
-Tune the executor with `.httpClient(HttpClient.newBuilder().executor(myExecutor).build())` if the default `ForkJoinPool.commonPool()` doesn't fit your workload.
-
 ## Runtime support
 
 Server-side only. The SDK runs on:
 
 - **Java 17 LTS** — minimum supported version.
 - **Java 21 LTS** — primary recommended runtime.
-- **Java 24** — current non-LTS, tested in CI.
+- **Java 25 LTS** — tested in CI.
 
 Compatible JVMs: OpenJDK, Temurin, Amazon Corretto, Azul Zulu, GraalVM (including Native Image).
 
 Kotlin consumers (Kotlin 1.9+) and Scala consumers (3.x) use the same JAR through normal JVM interop — no separate publishing targets.
 
-**Browsers / GWT are not supported.** API keys (`pp_test_*`, `pp_live_*`) are secrets and must never be shipped to a browser. Call the SDK from your backend (Spring Boot, Quarkus, Micronaut, Helidon, plain `main`, AWS Lambda) and proxy the result to the client.
+**Browsers / GWT are not supported.** API keys (`pp_{env}_…`, whatever the environment) are secrets and must never be shipped to a browser. Call the SDK from your backend (Spring Boot, Quarkus, Micronaut, Helidon, plain `main`, AWS Lambda) and proxy the result to the client.
 
-CI exercises Java 17, 21, and 24 on Linux, plus Java 21 on Windows and macOS.
+CI exercises Java 17, 21, and 25 on Linux, plus Java 21 on Windows and macOS.
 
 ## Requirements
 
@@ -367,7 +378,7 @@ CI exercises Java 17, 21, and 24 on Linux, plus Java 21 on Windows and macOS.
 ## Documentation & support
 
 - Platform docs: [docs.poli.page](https://docs.poli.page)
-- SDK API reference: [javadoc.io/doc/page.poli/sdk](https://javadoc.io/doc/page.poli/sdk)
+- SDK reference: [poli-page.github.io/sdk-java](https://poli-page.github.io/sdk-java/reference/client/)
 - Sign up & generate API keys: [app.poli.page](https://app.poli.page)
 - Issues: [github.com/poli-page/sdk-java/issues](https://github.com/poli-page/sdk-java/issues)
 - Support: support@poli.page

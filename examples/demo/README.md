@@ -1,18 +1,24 @@
 # `page.poli:sdk` — runnable demo
 
-A single CLI script that walks through every public method of the Java SDK
-end-to-end against the develop API. The result is four files on disk
-(`render.pdf`, `stream.pdf`, `file.pdf`, `preview.html`) plus a deliberate
-`PoliPageException` caught and inspected at the end.
+A single CLI program that walks through every public method of the Java SDK
+end-to-end against the Poli Page API. The result is a set of files on disk
+(three PDFs, the page thumbnails and the stored document's HTML) plus a
+deliberate `PoliPageException` caught and inspected at the end.
 
-The demo renders the `getting-started/welcome` template, which is
-auto-provisioned in every Poli Page org — so it works out of the box with any
-fresh API key, no project setup needed.
+The demo renders `getting-started`/`welcome` with `data: { name: "SDK Demo" }`
+and no version. Every organization gets a `getting-started` project,
+published into its `sandbox` environment when the organization is created,
+with a `welcome` template, so a `sandbox` key renders it with no setup. It is
+a normal, editable project: in an organization that renamed it, deleted it or
+removed it from `sandbox`, the API answers `404 PROJECT_NOT_FOUND` or
+`404 PROJECT_NOT_IN_ENVIRONMENT`. Use a fresh organization.
 
 ## Prereqs
 
 - **Java 17 or later** on your `PATH`.
-- A `pp_sandbox_*` API key (the demo will help you get one on first run).
+- A `sandbox` API key (`pp_sandbox_…`; the demo will help you get one on
+  first run). Sandbox renders are watermarked, are not counted toward your
+  quota, and their documents expire 30 days after creation.
 
 ## Run
 
@@ -26,24 +32,43 @@ That's it. The wrapper installs the working-tree SDK to your local `~/.m2/`
 first, then runs the demo against it.
 
 On first run, if no `POLI_PAGE_API_KEY` is set, the demo walks you through
-creating a sandbox key and pastes it into `.env` at the repo root so future
-runs pick it up automatically. To skip the prompt — for CI, or just for a
-one-off — set the env var inline:
+creating a sandbox key and saves it to `.env` at the repo root so future
+runs pick it up automatically. A pasted key must match the full-key format
+shared by every Poli Page SDK, `pp_{env}_{32 lowercase hex}`:
+
+```text
+^pp_(?=[a-z][a-z0-9-]{0,19}_)[a-z][a-z0-9]*(?:-[a-z0-9]+)*_[0-9a-f]{32}$
+```
+
+To skip the prompt — for CI, or just for a one-off — set the env var inline:
 
 ```bash
-POLI_PAGE_API_KEY=pp_sandbox_... ./scripts/demo
+POLI_PAGE_API_KEY=pp_sandbox_x ./scripts/demo
 ```
+
+(replace `pp_sandbox_x` with your key).
 
 ## What it does
 
-| Step | SDK call                                                   | Output                |
-| ---- | ---------------------------------------------------------- | --------------------- |
-| 1    | `client.render().pdf(input)`                               | `output/render.pdf`   |
-| 2    | `client.render().pdfStream(input)`                         | `output/stream.pdf`   |
-| 3    | `client.renderToFile(input, path)`                         | `output/file.pdf`     |
-| 4    | `client.render().document(input)`                          | (descriptor in stdout)|
-| 5    | `client.documents().preview(documentId)`                   | `output/preview.html` |
-| 6    | Render template `does-not-exist` → catch `TEMPLATE_NOT_FOUND` | (inspected in stdout) |
+| Step | SDK call                                         | Output                          |
+| ---- | ------------------------------------------------ | ------------------------------- |
+| 1    | `client.render().pdf(input)`                     | `output/render.pdf`             |
+| 2    | `client.render().pdfStream(input)`               | `output/stream.pdf`             |
+| 3    | `client.renderToFile(input, path)`               | `output/file.pdf`               |
+| 4    | `client.render().document(input)`                | (descriptor in stdout)          |
+| 5    | `client.documents().get(documentId)`             | (refreshed URL expiry in stdout)|
+| 6    | `client.documents().thumbnails(documentId, …)`   | `output/thumbs/page_N.png`      |
+| 7    | `client.documents().preview(documentId)`         | `output/documents_preview.html` |
+| 8    | `client.documents().delete(documentId)`          | (stdout)                        |
+| 9    | `not-found`: render template `does-not-exist`    | (error in stdout)               |
+
+Step 6 needs the Starter tier or above: on a Free organization the API
+answers `403` and the demo prints `skipped` and carries on.
+
+Step 9 renders `{ project: "getting-started", template: "does-not-exist",
+data: {} }` on purpose. The API answers `404` with code `TEMPLATE_NOT_FOUND`;
+the demo catches the `PoliPageException` and prints its `code`, `statusCode`,
+`message` and `requestId`. Any other error stops the demo.
 
 Outputs land in `examples/demo/output/` (gitignored). Open the PDFs and
 HTML to confirm the SDK is producing valid documents end-to-end.
@@ -73,7 +98,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 Add those lines to `~/.zshrc` to make it stick across shells.
 
-**`Could not find artifact page.poli:sdk:1.0.0-SNAPSHOT`** — the wrapper
+**`Could not find artifact page.poli:sdk:0.10.0`** — the wrapper
 runs `mvn install -DskipTests` first to publish the working-tree SDK to
 your local `~/.m2/`. If that step failed, scroll up in the output to find
 the underlying error (usually a compile or formatting issue in the SDK

@@ -50,7 +50,7 @@ interface Method {
   readonly exampleFile: string; // file name in examples/
 }
 
-const COMMON_RETRYABLE = ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'timeout', 'network_error', 'INTERNAL_ERROR'];
+const RENDER_ERRORS = ['VALIDATION_ERROR', 'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND', 'QUOTA_EXCEEDED', 'timeout', 'network_error', 'INTERNAL_ERROR'];
 
 const METHODS: readonly Method[] = [
   {
@@ -60,7 +60,7 @@ const METHODS: readonly Method[] = [
     summary: 'Render the given input as a PDF and return the raw bytes. Two HTTP hops under the hood: POST /v1/render to produce a stored document, then GET presignedPdfUrl to fetch the bytes.',
     params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`byte[]` — the rendered PDF bytes.',
-    errorCodes: COMMON_RETRYABLE,
+    errorCodes: RENDER_ERRORS,
     exampleFile: 'render-pdf.java',
   },
   {
@@ -70,7 +70,7 @@ const METHODS: readonly Method[] = [
     summary: 'Render the given input as a PDF and return a streaming body. Use this for large documents to avoid buffering the full byte array in memory. The returned InputStream owns the underlying HTTP connection — wrap the call in try-with-resources.',
     params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`InputStream` reading the PDF body — caller must close.',
-    errorCodes: COMMON_RETRYABLE,
+    errorCodes: RENDER_ERRORS,
     exampleFile: 'render-pdf-stream.java',
   },
   {
@@ -80,7 +80,7 @@ const METHODS: readonly Method[] = [
     summary: 'Render the given input and return the stored document descriptor without downloading the PDF. Useful when you want to persist documentId and download on demand later.',
     params: [{ name: 'input', type: 'RenderInput', required: true, description: 'The render input — non-null.' }],
     returns: '`DocumentDescriptor` — includes documentId, presignedPdfUrl (15-minute TTL), metadata.',
-    errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'INTERNAL_ERROR'],
+    errorCodes: ['VALIDATION_ERROR', 'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND', 'QUOTA_EXCEEDED', 'INTERNAL_ERROR'],
     exampleFile: 'render-document.java',
   },
   {
@@ -136,7 +136,7 @@ const METHODS: readonly Method[] = [
       { name: 'path', type: 'Path', required: true, description: 'Destination file path — non-null. Existing file is overwritten.' },
     ],
     returns: '`void` — the file is closed before the method returns, even on failure.',
-    errorCodes: [...COMMON_RETRYABLE, 'io_error'],
+    errorCodes: [...RENDER_ERRORS, 'io_error'],
     exampleFile: 'render-to-file.java',
   },
 ];
@@ -324,7 +324,7 @@ Every failure thrown by the SDK is a \`PoliPageException\` (a \`RuntimeException
 
 ## Exception subclasses
 
-The sealed permits are: \`PoliPageAuthException\` (401/403), \`PoliPageNotFoundException\` (404), \`PoliPageGoneException\` (410), \`PoliPageValidationException\` (400/422), \`PoliPageRateLimitException\` (429, exposes \`retryAfter()\`), \`PoliPageNetworkException\` (transport, no HTTP status), \`PoliPageDownloadException\` (presigned URL fetch). The base \`PoliPageException\` is also concrete for the unmapped tail.
+The sealed permits are: \`PoliPageAuthException\` (401/403), \`PoliPageNotFoundException\` (404), \`PoliPageGoneException\` (410), \`PoliPageValidationException\` (400/422), \`PoliPageRateLimitException\` (429, exposes \`retryAfter()\`), \`PoliPageNetworkException\` (transport, no HTTP status), \`PoliPageDownloadException\` (presigned URL fetch), \`PoliPageInvalidOptionsException\` (client builder validation). The base \`PoliPageException\` is also concrete for the unmapped tail.
 
 ## SDK-internal codes
 
@@ -347,12 +347,12 @@ import RuntimeMatrix from '@preset/components/RuntimeMatrix.astro';
 The Java SDK targets Java 17 LTS and is built and tested against the matrix below.
 
 <RuntimeMatrix matrix={{
-  runtimes: ['17', '21', '24'],
+  runtimes: ['17', '21', '25'],
   os: ['linux', 'macos', 'windows'],
   cells: {
     '17': { linux: 'tested', macos: 'supported', windows: 'supported' },
     '21': { linux: 'tested', macos: 'tested', windows: 'tested' },
-    '24': { linux: 'tested', macos: 'supported', windows: 'supported' },
+    '25': { linux: 'tested', macos: 'supported', windows: 'supported' },
   },
 }} />
 
@@ -360,7 +360,7 @@ The minimum supported JVM is **Java 17**. The SDK uses sealed interfaces, record
 
 ## Why these versions
 
-The matrix tracks Java's LTS cadence — latest two LTS releases plus the current non-LTS. Java 17 stays as the floor; Java 21 is the full-OS matrix anchor; Java 24 confirms that the next LTS (25) is on track.
+The matrix tracks Java's LTS cadence — Java 17 stays as the floor; Java 21 is the full-OS matrix anchor; Java 25 is the latest LTS.
 `;
 }
 

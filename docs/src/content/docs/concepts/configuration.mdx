@@ -7,13 +7,15 @@ The `PoliPageClient.Builder` accepts fluent setters for every option. Only `apiK
 
 ## Available options
 
-- `apiKey(String)` (required) — your `pp_test_` or `pp_live_` key.
+- `apiKey(String)` (required) — an API key of one environment, `pp_{env}_…` (e.g. `pp_sandbox_…`). See [authentication](../authentication/).
 - `baseUrl(URI)` — override the API endpoint. Defaults to `https://api.poli.page`.
 - `requestTimeout(Duration)` — per-request timeout. Defaults to `Duration.ofSeconds(60)`.
 - `maxRetries(int)` — maximum retry attempts for retryable errors. Defaults to `2` (three total attempts).
 - `retryDelay(Duration)` — initial retry backoff. Defaults to `Duration.ofMillis(500)`. Doubles each attempt with jitter.
 - `onRetry(Consumer<RetryEvent>)` — fired just before each retry sleep. Use for metrics, traces, structured logs.
 - `onError(Consumer<Throwable>)` — fired when the SDK is about to surface a terminal transport failure.
+- `onRequest(Consumer<RequestEvent>)` — fired before each HTTP attempt (`method`, `url`, `attempt`).
+- `onResponse(Consumer<ResponseEvent>)` — fired after each HTTP response (`status`, `requestId`, `durationMs`).
 
 ## Example
 

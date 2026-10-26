@@ -1,0 +1,71 @@
+name: Integration
+
+# Runs the integration tests (src/integrationTest/java, the `integration-tests`
+# Maven profile) against the real API.
+#
+# Secrets:
+#   POLI_PAGE_API_KEY  — a `pp_sandbox_` key of an organization whose
+#                        `getting-started` project is untouched (published in
+#                        `sandbox`, with its `welcome` template).
+#   POLI_PAGE_BASE_URL — optional API base URL; unset, the SDK default applies.
+#                        Kept a secret so the host is masked in the public logs.
+#
+# Without POLI_PAGE_API_KEY the job logs a skip and succeeds.
+
+on:
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check for the API key secret
+        id: key
+        env:
+          POLI_PAGE_API_KEY: ${{ secrets.POLI_PAGE_API_KEY }}
+        run: |
+          # An unset secret reaches the job as an empty string.
+          if [ -z "$POLI_PAGE_API_KEY" ]; then
+            echo "::notice::POLI_PAGE_API_KEY secret is not set: skipping the integration tests."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.key.outputs.present == 'true'
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        if: steps.key.outputs.present == 'true'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Integration tests
+        if: steps.key.outputs.present == 'true'
+        env:
+          POLI_PAGE_API_KEY: ${{ secrets.POLI_PAGE_API_KEY }}
+          POLI_PAGE_BASE_URL: ${{ secrets.POLI_PAGE_BASE_URL }}
+        run: |
+          # An unset secret expands to an empty string; drop it so the tests
+          # fall back to the SDK default base URL.
+          if [ -z "$POLI_PAGE_BASE_URL" ]; then unset POLI_PAGE_BASE_URL; fi
+          ./mvnw -B -P integration-tests verify

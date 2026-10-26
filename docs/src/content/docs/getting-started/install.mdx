@@ -3,7 +3,17 @@ title: Install
 description: How to install the Poli Page Java SDK with Maven or Gradle.
 ---
 
-The Poli Page Java SDK ships as `page.poli:sdk` on Maven Central. It targets Java 17 LTS and runs on every newer JVM.
+The Poli Page Java SDK is `page.poli:sdk`. It targets Java 17 LTS and runs on every newer JVM.
+
+## Build from source
+
+The SDK is not published yet: it is not on Maven Central. Build it and install it into your local Maven repository (`~/.m2`):
+
+```bash
+git clone https://github.com/poli-page/sdk-java.git
+cd sdk-java
+./mvnw -B install -DskipTests
+```
 
 ## Install with Maven
 
@@ -11,15 +21,17 @@ The Poli Page Java SDK ships as `page.poli:sdk` on Maven Central. It targets Jav
 <dependency>
   <groupId>page.poli</groupId>
   <artifactId>sdk</artifactId>
-  <version>1.0.0</version>
+  <version>0.10.0</version>
 </dependency>
 ```
 
 ## Install with Gradle
 
+Add `mavenLocal()` to `repositories`, then:
+
 ```groovy
 dependencies {
-    implementation 'page.poli:sdk:1.0.0'
+    implementation 'page.poli:sdk:0.10.0'
 }
 ```
 
@@ -27,13 +39,13 @@ Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("page.poli:sdk:1.0.0")
+    implementation("page.poli:sdk:0.10.0")
 }
 ```
 
 ## Java version
 
-The SDK targets Java 17 and is tested against Java 17, 21, and 24 on Linux, plus Java 21 on macOS and Windows. See [runtime support](../../reference/runtime-support/) for the full matrix.
+The SDK targets Java 17 and is tested against Java 17, 21, and 25 on Linux, plus Java 21 on macOS and Windows. See [runtime support](../../reference/runtime-support/) for the full matrix.
 
 ## Example
 
