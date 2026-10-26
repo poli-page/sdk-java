@@ -19,7 +19,7 @@ import page.poli.sdk.model.DocumentDescriptor;
 @WireMockTest
 class DocumentsDownloadPdfTest {
 
-  private static final String TEST_KEY = "pp_test_x";
+  private static final String TEST_KEY = "pp_sandbox_x";
   private static final byte[] PDF = "%PDF-1.4\nbody".getBytes(StandardCharsets.UTF_8);
   private static final String PRESIGNED_PATH = "/presigned/doc.pdf";
 
@@ -35,7 +35,6 @@ class DocumentsDownloadPdfTest {
     return new DocumentDescriptor(
         "doc_x",
         "org",
-        null,
         null,
         null,
         null,

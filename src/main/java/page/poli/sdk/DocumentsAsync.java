@@ -72,10 +72,20 @@ public final class DocumentsAsync {
             });
   }
 
+  /**
+   * Async variant of {@link Documents#thumbnails(String)}.
+   *
+   * @param id the document ID
+   * @return a future of the generated thumbnails
+   */
+  public CompletableFuture<List<Thumbnail>> thumbnails(String id) {
+    return thumbnails(id, ThumbnailOptions.builder().build());
+  }
+
   /** Async variant of {@link Documents#thumbnails(String, ThumbnailOptions)}. */
   public CompletableFuture<List<Thumbnail>> thumbnails(String id, ThumbnailOptions options) {
     String path = DOCUMENTS_PATH + encode(id) + "/thumbnails";
-    Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
+    Map<String, ThumbnailOptions> wireBody = Documents.thumbnailsWireBody(options);
     String idempotencyKey =
         options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
     URI fullUrl = Urls.join(transport.baseUrl(), path);

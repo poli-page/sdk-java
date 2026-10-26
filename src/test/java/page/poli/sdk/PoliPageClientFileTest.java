@@ -22,12 +22,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageNotFoundException;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 
 @WireMockTest
 class PoliPageClientFileTest {
 
-  private static final String TEST_KEY = "pp_test_secret";
+  private static final String TEST_KEY = "pp_sandbox_secret";
   private static final byte[] PDF_BYTES =
       "%PDF-1.4\nfile pdf body".getBytes(StandardCharsets.UTF_8);
   private static final String PRESIGNED_PATH = "/presigned/file.pdf";
@@ -72,11 +72,10 @@ class PoliPageClientFileTest {
                     .withBody(PDF_BYTES)));
   }
 
-  private static ProjectModeInput simpleInput() {
-    return ProjectModeInput.builder()
+  private static RenderInput simpleInput() {
+    return RenderInput.builder()
         .project("billing")
         .template("invoice")
-        .version("1.0.0")
         .data(Map.of("k", "v"))
         .build();
   }
@@ -113,7 +112,7 @@ class PoliPageClientFileTest {
                 aResponse()
                     .withStatus(404)
                     .withHeader("Content-Type", "application/json")
-                    .withBody("{\"code\":\"VERSION_NOT_FOUND\",\"message\":\"x\"}")));
+                    .withBody("{\"error\":\"TEMPLATE_NOT_FOUND\",\"detail\":\"x\"}")));
 
     assertThatThrownBy(() -> newClient(wm).renderToFile(simpleInput(), tmp.resolve("nope.pdf")))
         .isInstanceOf(PoliPageNotFoundException.class);
@@ -157,7 +156,7 @@ class PoliPageClientFileTest {
                 aResponse()
                     .withStatus(404)
                     .withHeader("Content-Type", "application/json")
-                    .withBody("{\"code\":\"VERSION_NOT_FOUND\",\"message\":\"x\"}")));
+                    .withBody("{\"error\":\"TEMPLATE_NOT_FOUND\",\"detail\":\"x\"}")));
 
     assertThatThrownBy(
             () -> newClient(wm).renderToFileAsync(simpleInput(), tmp.resolve("x.pdf")).join())

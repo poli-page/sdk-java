@@ -31,14 +31,14 @@ import page.poli.sdk.model.ThumbnailOptions;
  * <ul>
  *   <li>{@link #get(String)} — retrieve a document descriptor with a fresh presigned URL
  *   <li>{@link #preview(String)} — fetch the stored HTML body + page count
- *   <li>{@link #thumbnails(String, ThumbnailOptions)} — request page thumbnails
+ *   <li>{@link #thumbnails(String)} / {@link #thumbnails(String, ThumbnailOptions)} — request page
+ *       thumbnails
  *   <li>{@link #delete(String)} — soft-delete a stored document
  * </ul>
  *
- * <p>All four methods run through the SDK's {@link RetryLoop}. {@code delete} is idempotent on the
- * server side; the SDK retries on 5xx/429 like the other verbs. A re-delete of an already-deleted
- * document surfaces as {@link page.poli.sdk.exception.PoliPageGoneException} (410), not an error to
- * swallow.
+ * <p>All four methods run through the SDK's {@link RetryLoop}. {@code delete} is idempotent: the
+ * API answers {@code 204} for an already-deleted document too, so a re-delete returns normally. The
+ * SDK retries on 5xx/429 like the other verbs.
  */
 public final class Documents {
 
@@ -96,11 +96,24 @@ public final class Documents {
   }
 
   /**
+   * Request thumbnails of the stored document with the API defaults (400 px wide {@code jpeg},
+   * every page). The request body is {@code {}}.
+   *
+   * @param id the document ID
+   * @return list of generated thumbnails
+   * @throws PoliPageException on any non-2xx response after retries, or transport failure
+   */
+  public List<Thumbnail> thumbnails(String id) {
+    return thumbnails(id, ThumbnailOptions.builder().build());
+  }
+
+  /**
    * Request thumbnails of the stored document.
    *
    * <p>The deployed API wraps the request body under a {@code "thumbnails"} key and returns the
    * array under the same key — the SDK handles both translations so callers just deal in {@link
-   * ThumbnailOptions} and {@code List<Thumbnail>}.
+   * ThumbnailOptions} and {@code List<Thumbnail>}. Only the options that are set are sent; with
+   * none set, the body is {@code {}}.
    *
    * @param id the document ID
    * @param options the thumbnail options
@@ -109,7 +122,7 @@ public final class Documents {
    */
   public List<Thumbnail> thumbnails(String id, ThumbnailOptions options) {
     String path = DOCUMENTS_PATH + encode(id) + "/thumbnails";
-    Map<String, ThumbnailOptions> wireBody = Map.of("thumbnails", options);
+    Map<String, ThumbnailOptions> wireBody = thumbnailsWireBody(options);
     String idempotencyKey =
         options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
     URI fullUrl = Urls.join(transport.baseUrl(), path);
@@ -124,7 +137,8 @@ public final class Documents {
   /**
    * Soft-delete a stored document. The deleted document can no longer be fetched; subsequent {@link
    * #get(String)} or {@link #preview(String)} calls will throw {@link
-   * page.poli.sdk.exception.PoliPageGoneException} (HTTP 410).
+   * page.poli.sdk.exception.PoliPageGoneException} (HTTP 410, {@code DOCUMENT_GONE}). Deleting an
+   * already-deleted document also returns normally: the API answers {@code 204} either way.
    *
    * @param id the document ID
    * @throws PoliPageException on any non-2xx response after retries, or transport failure
@@ -146,7 +160,7 @@ public final class Documents {
    * an expired-signature error won't recover.
    *
    * @param descriptor the descriptor returned by {@link #get(String)} or {@link
-   *     page.poli.sdk.Render#document(page.poli.sdk.input.ProjectModeInput)}
+   *     page.poli.sdk.Render#document(page.poli.sdk.input.RenderInput)}
    * @return the PDF bytes
    * @throws PoliPageDownloadException on non-2xx or transport failure
    */
@@ -232,6 +246,19 @@ public final class Documents {
   private static @Nullable String header(HttpResponse<?> response, String name) {
     HttpHeaders headers = response.headers();
     return headers.firstValue(name).orElse(null);
+  }
+
+  /**
+   * Request envelope for the thumbnails call: {@code {"thumbnails": {...}}} when an option is set,
+   * {@code {}} otherwise.
+   */
+  static Map<String, ThumbnailOptions> thumbnailsWireBody(ThumbnailOptions options) {
+    boolean anySet =
+        options.width() != null
+            || options.format() != null
+            || options.quality() != null
+            || options.pages() != null;
+    return anySet ? Map.of("thumbnails", options) : Map.of();
   }
 
   /** Wire envelope: {@code {"thumbnails": [...]}}. */

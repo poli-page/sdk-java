@@ -2,7 +2,7 @@
 # Runnable end-to-end demo for the page.poli:sdk Java client.
 # See examples/demo/README.md for details.
 #
-# If POLI_PAGE_API_KEY is unset, the demo prompts for a pp_test_* key and
+# If POLI_PAGE_API_KEY is unset, the demo prompts for a pp_sandbox_* key and
 # persists it to `.env` at the repo root. Subsequent runs pick it up
 # automatically.
 

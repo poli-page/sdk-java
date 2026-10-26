@@ -5,15 +5,17 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.Locale;
 
 /**
- * Output image format for {@code client.documents().thumbnails(...)}.
+ * Output image format for {@code client.documents().thumbnails(...)}. The API defaults to {@code
+ * jpeg} when no format is sent.
  *
- * <p>The wire representation is the lowercase form ({@code "png"}, {@code "jpeg"}) — Java enum
- * constants follow JVM uppercase idiom; Jackson translates between the two via {@link JsonValue}
- * and {@link JsonCreator}.
+ * <p>The wire representation is the lowercase form ({@code "png"}, {@code "jpeg"}, {@code "webp"})
+ * — Java enum constants follow JVM uppercase idiom; Jackson translates between the two via {@link
+ * JsonValue} and {@link JsonCreator}.
  */
 public enum ThumbnailFormat {
   PNG,
-  JPEG;
+  JPEG,
+  WEBP;
 
   /**
    * @return the wire form of this format (lowercase)

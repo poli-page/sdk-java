@@ -28,7 +28,7 @@ import page.poli.sdk.model.ThumbnailOptions;
 @WireMockTest
 class DocumentsAsyncTest {
 
-  private static final String TEST_KEY = "pp_test_secret";
+  private static final String TEST_KEY = "pp_sandbox_secret";
   private static final String DOC_ID = "doc_async";
   private static final String DOC_PATH = "/v1/documents/" + DOC_ID;
 
@@ -113,7 +113,24 @@ class DocumentsAsyncTest {
 
     verify(
         postRequestedFor(urlEqualTo(DOC_PATH + "/thumbnails"))
-            .withRequestBody(equalToJson("{\"thumbnails\":{\"width\":320,\"format\":\"png\"}}")));
+            .withRequestBody(equalToJson("{\"thumbnails\":{\"width\":320}}")));
+  }
+
+  @Test
+  void thumbnails_without_options_sends_empty_object_via_future(WireMockRuntimeInfo wm) {
+    stubFor(
+        post(urlEqualTo(DOC_PATH + "/thumbnails"))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"thumbnails\":[]}")));
+
+    List<Thumbnail> result = newClient(wm).documentsAsync().thumbnails(DOC_ID).join();
+
+    assertThat(result).isEmpty();
+    verify(
+        postRequestedFor(urlEqualTo(DOC_PATH + "/thumbnails")).withRequestBody(equalToJson("{}")));
   }
 
   @Test
@@ -134,7 +151,7 @@ class DocumentsAsyncTest {
                 aResponse()
                     .withStatus(404)
                     .withHeader("Content-Type", "application/json")
-                    .withBody("{\"code\":\"DOCUMENT_NOT_FOUND\",\"message\":\"x\"}")));
+                    .withBody("{\"error\":\"DOCUMENT_NOT_FOUND\",\"detail\":\"x\"}")));
 
     assertThatThrownBy(() -> newClient(wm).documentsAsync().get(DOC_ID).join())
         .isInstanceOf(CompletionException.class)
@@ -142,16 +159,16 @@ class DocumentsAsyncTest {
   }
 
   @Test
-  void delete_410_wraps_in_CompletionException_with_PoliPageGoneException(WireMockRuntimeInfo wm) {
+  void get_410_wraps_in_CompletionException_with_PoliPageGoneException(WireMockRuntimeInfo wm) {
     stubFor(
-        delete(urlEqualTo(DOC_PATH))
+        get(urlEqualTo(DOC_PATH))
             .willReturn(
                 aResponse()
                     .withStatus(410)
                     .withHeader("Content-Type", "application/json")
-                    .withBody("{\"code\":\"GONE\",\"message\":\"already deleted\"}")));
+                    .withBody("{\"error\":\"DOCUMENT_GONE\",\"detail\":\"deleted\"}")));
 
-    assertThatThrownBy(() -> newClient(wm).documentsAsync().delete(DOC_ID).join())
+    assertThatThrownBy(() -> newClient(wm).documentsAsync().get(DOC_ID).join())
         .isInstanceOf(CompletionException.class)
         .hasCauseInstanceOf(PoliPageGoneException.class);
   }

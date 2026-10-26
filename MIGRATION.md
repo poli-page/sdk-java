@@ -16,19 +16,18 @@ Java SDK — there is no prior published surface to migrate from.
 ```java
 import page.poli.sdk.PoliPageClient;
 import page.poli.sdk.PoliPageClientOptions;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 
 PoliPageClient client = PoliPageClient.builder()
     .apiKey(System.getenv("POLI_PAGE_API_KEY"))
     .build();
 
 // Render facade (blocking)
-//   client.render().pdf, pdfStream, document → project mode only
-//                                              (project + template + version)
-//   client.render().preview                  → both project and inline mode
+//   client.render().pdf, pdfStream, document → RenderInput
+//                                              (project + template + data)
 
 // Render facade (async, returns CompletableFuture<T>)
-//   client.renderAsync().pdf, pdfStream, preview, document
+//   client.renderAsync().pdf, pdfStream, document
 
 // Documents facade (stored-document lifecycle)
 //   client.documents().get, preview, thumbnails, delete
@@ -45,7 +44,6 @@ same retry policy (5xx + 429 + network + timeout; jitter `[0.5, 1.5)`;
 `Retry-After` cap 30s), same error-code round-tripping, same predicate
 exceptions (`PoliPageAuthException` covers 401 + 403), same constructor
 validation, same hooks-never-break-the-request semantics, same
-project-mode-only constraint on `render().pdf` / `pdfStream` /
-`document`, same primitive-only `metadata`, same thumbnails wire
+primitive-only `metadata`, same thumbnails wire
 wrap/unwrap, same `documents().preview` `text/html` +
 `X-Document-Page-Count` parsing.

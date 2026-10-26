@@ -14,7 +14,6 @@ import page.poli.sdk.exception.PoliPageAuthException;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.exception.PoliPageGoneException;
 import page.poli.sdk.exception.PoliPageNotFoundException;
-import page.poli.sdk.exception.PoliPagePaymentRequiredException;
 import page.poli.sdk.exception.PoliPageRateLimitException;
 import page.poli.sdk.exception.PoliPageValidationException;
 
@@ -23,11 +22,15 @@ import page.poli.sdk.exception.PoliPageValidationException;
  * PoliPageException} subclass. No I/O, no global state — entirely testable from a unit test with
  * byte arrays.
  *
- * <p>Body parsing is lenient: an empty body, a non-JSON body, or a JSON object missing {@code code}
- * / {@code message} all degrade gracefully to status-derived defaults rather than masking the
- * original failure with a parse exception.
+ * <p>The API's error body is {@code { error, detail?, issues?, requestId }}. The code is the body's
+ * {@code code} field, else its {@code error} field, else {@code unknown_error}; the message is
+ * {@code detail}, else {@code title}, else {@code message}, else {@code HTTP <status>}. A body that
+ * is not JSON (empty included) gives {@code INTERNAL_ERROR} with the real status. The code is never
+ * inferred from the status, and an unknown code is returned verbatim.
  */
 public final class ErrorParsing {
+
+  private static final String UNKNOWN_ERROR = "unknown_error";
 
   private ErrorParsing() {}
 
@@ -49,15 +52,12 @@ public final class ErrorParsing {
       @Nullable String retryAfterHeader,
       ObjectMapper mapper) {
     Parsed parsed = parseBody(body, mapper);
-    String code = parsed.code != null ? parsed.code : defaultCodeForStatus(statusCode);
-    // RFC 7807: prefer `detail` (specific) > `title` (generic) > legacy `message` > canned.
-    // No "API error (NNN)" synthesis.
+    String code = parsed.code != null ? parsed.code : UNKNOWN_ERROR;
     String message = parsed.message != null ? parsed.message : ("HTTP " + statusCode);
 
     return switch (statusCode) {
       case 400, 422 -> new PoliPageValidationException(code, statusCode, message, requestId);
       case 401, 403 -> new PoliPageAuthException(code, statusCode, message, requestId);
-      case 402 -> new PoliPagePaymentRequiredException(code, statusCode, message, requestId);
       case 404 -> new PoliPageNotFoundException(code, statusCode, message, requestId);
       case 410 -> new PoliPageGoneException(code, statusCode, message, requestId);
       case 429 ->
@@ -109,14 +109,20 @@ public final class ErrorParsing {
 
   private static Parsed parseBody(@Nullable byte[] body, ObjectMapper mapper) {
     if (body == null || body.length == 0) {
-      return Parsed.EMPTY;
+      return Parsed.NOT_JSON;
     }
     try {
       JsonNode root = mapper.readTree(body);
-      if (root == null || !root.isObject()) {
+      if (root == null || root.isMissingNode()) {
+        return Parsed.NOT_JSON;
+      }
+      if (!root.isObject()) {
         return Parsed.EMPTY;
       }
       String code = textOrNull(root, "code");
+      if (code == null) {
+        code = textOrNull(root, "error");
+      }
       // RFC 7807 preference for message: detail > title > legacy message field.
       String message = textOrNull(root, "detail");
       if (message == null) {
@@ -127,7 +133,7 @@ public final class ErrorParsing {
       }
       return new Parsed(code, message);
     } catch (IOException ignored) {
-      return Parsed.EMPTY;
+      return Parsed.NOT_JSON;
     }
   }
 
@@ -140,20 +146,8 @@ public final class ErrorParsing {
     return value.isEmpty() ? null : value;
   }
 
-  private static String defaultCodeForStatus(int statusCode) {
-    return switch (statusCode) {
-      case 400, 422 -> PoliPageErrorCode.VALIDATION_ERROR;
-      case 401 -> PoliPageErrorCode.INVALID_API_KEY;
-      case 402 -> PoliPageErrorCode.PAYMENT_REQUIRED;
-      case 403 -> PoliPageErrorCode.FORBIDDEN;
-      case 404 -> PoliPageErrorCode.NOT_FOUND;
-      case 410 -> PoliPageErrorCode.GONE;
-      case 429 -> PoliPageErrorCode.QUOTA_EXCEEDED;
-      default -> statusCode >= 500 ? PoliPageErrorCode.INTERNAL_ERROR : "UNKNOWN";
-    };
-  }
-
   private record Parsed(@Nullable String code, @Nullable String message) {
     private static final Parsed EMPTY = new Parsed(null, null);
+    private static final Parsed NOT_JSON = new Parsed(PoliPageErrorCode.INTERNAL_ERROR, null);
   }
 }

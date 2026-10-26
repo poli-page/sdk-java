@@ -4,7 +4,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The requested resource existed once but is permanently unavailable. HTTP {@code 410}. Typically a
- * soft-deleted document ({@code GONE}) or an organization that was purged ({@code
+ * soft-deleted document ({@code DOCUMENT_GONE}) or an organization that was purged ({@code
  * ORGANIZATION_PURGED}).
  */
 public final class PoliPageGoneException extends PoliPageException {

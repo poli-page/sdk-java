@@ -25,7 +25,7 @@ class DocumentsAsyncDownloadPdfTest {
 
   private static PoliPageClient client(WireMockRuntimeInfo wm) {
     return PoliPageClient.builder()
-        .apiKey("pp_test_x")
+        .apiKey("pp_sandbox_x")
         .baseUrl(URI.create(wm.getHttpBaseUrl()))
         .maxRetries(0)
         .build();
@@ -35,7 +35,6 @@ class DocumentsAsyncDownloadPdfTest {
     return new DocumentDescriptor(
         "doc_x",
         "org",
-        null,
         null,
         null,
         null,

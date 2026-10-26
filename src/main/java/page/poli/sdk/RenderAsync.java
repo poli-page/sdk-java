@@ -12,14 +12,12 @@ import java.util.concurrent.CompletionException;
 import org.jspecify.annotations.Nullable;
 import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
-import page.poli.sdk.input.ProjectModeInput;
 import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.internal.ErrorParsing;
 import page.poli.sdk.internal.RetryLoop;
 import page.poli.sdk.internal.Transport;
 import page.poli.sdk.internal.Urls;
 import page.poli.sdk.model.DocumentDescriptor;
-import page.poli.sdk.model.PreviewResult;
 
 /**
  * Asynchronous counterpart of {@link Render}. Obtain via {@link PoliPageClient#renderAsync()}.
@@ -39,7 +37,6 @@ import page.poli.sdk.model.PreviewResult;
 public final class RenderAsync {
 
   private static final String RENDER_PATH = "/v1/render";
-  private static final String PREVIEW_PATH = "/v1/render/preview";
   private static final String REQUEST_ID_HEADER = "x-request-id";
   private static final String RETRY_AFTER_HEADER = "retry-after";
 
@@ -54,12 +51,12 @@ public final class RenderAsync {
   }
 
   /**
-   * Async variant of {@link Render#pdf(ProjectModeInput)} — returns the PDF bytes as a future.
+   * Async variant of {@link Render#pdf(RenderInput)} — returns the PDF bytes as a future.
    *
    * @param input the render input — non-null
    * @return a future of PDF bytes
    */
-  public CompletableFuture<byte[]> pdf(ProjectModeInput input) {
+  public CompletableFuture<byte[]> pdf(RenderInput input) {
     return document(input)
         .thenCompose(d -> transport.getPresignedAsync(URI.create(d.presignedPdfUrl())))
         .thenApply(
@@ -76,14 +73,14 @@ public final class RenderAsync {
   }
 
   /**
-   * Async variant of {@link Render#pdfStream(ProjectModeInput)} — returns an {@link InputStream} as
-   * a future. Same close-the-stream contract: wrap in {@code try-with-resources} or leak a
-   * connection slot.
+   * Async variant of {@link Render#pdfStream(RenderInput)} — returns an {@link InputStream} as a
+   * future. Same close-the-stream contract: wrap in {@code try-with-resources} or leak a connection
+   * slot.
    *
    * @param input the render input — non-null
    * @return a future of the streaming body
    */
-  public CompletableFuture<InputStream> pdfStream(ProjectModeInput input) {
+  public CompletableFuture<InputStream> pdfStream(RenderInput input) {
     return document(input)
         .thenCompose(d -> transport.getPresignedStreamAsync(URI.create(d.presignedPdfUrl())))
         .thenApply(
@@ -105,28 +102,18 @@ public final class RenderAsync {
   }
 
   /**
-   * Async variant of {@link Render#document(ProjectModeInput)}.
+   * Async variant of {@link Render#document(RenderInput)}.
    *
    * @param input the render input — non-null
    * @return a future of the parsed descriptor
    */
-  public CompletableFuture<DocumentDescriptor> document(ProjectModeInput input) {
+  public CompletableFuture<DocumentDescriptor> document(RenderInput input) {
     return postAndParseAsync(RENDER_PATH, input, DocumentDescriptor.class);
-  }
-
-  /**
-   * Async variant of {@link Render#preview(RenderInput)}.
-   *
-   * @param input the render input — accepts either mode
-   * @return a future of the parsed preview result
-   */
-  public CompletableFuture<PreviewResult> preview(RenderInput input) {
-    return postAndParseAsync(PREVIEW_PATH, input, PreviewResult.class);
   }
 
   // -- internals -----------------------------------------------------
 
-  private <T> CompletableFuture<T> postAndParseAsync(String path, Object body, Class<T> type) {
+  private <T> CompletableFuture<T> postAndParseAsync(String path, RenderInput body, Class<T> type) {
     String idempotencyKey = idempotencyKeyOf(body);
     URI fullUrl = Urls.join(transport.baseUrl(), path);
     return retry
@@ -135,14 +122,9 @@ public final class RenderAsync {
         .thenApply(response -> mapResponse(response, path, type));
   }
 
-  private static String idempotencyKeyOf(Object body) {
-    if (body instanceof page.poli.sdk.input.ProjectModeInput p && p.idempotencyKey() != null) {
-      return p.idempotencyKey();
-    }
-    if (body instanceof page.poli.sdk.input.InlineModeInput i && i.idempotencyKey() != null) {
-      return i.idempotencyKey();
-    }
-    return UUID.randomUUID().toString();
+  private static String idempotencyKeyOf(RenderInput body) {
+    String key = body.idempotencyKey();
+    return key != null ? key : UUID.randomUUID().toString();
   }
 
   private <T> T mapResponse(HttpResponse<byte[]> response, String path, Class<T> type) {
