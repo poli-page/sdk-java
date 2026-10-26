@@ -21,6 +21,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -547,6 +548,18 @@ class RenderTest {
                   .map(RecordComponent::getName))
           .contains("environment")
           .doesNotContain("version");
+    }
+
+    @Test
+    void render_preview_surface_is_removed() {
+      assertThat(Arrays.stream(Render.class.getMethods()).map(Method::getName))
+          .doesNotContain("preview");
+      assertThat(Arrays.stream(RenderAsync.class.getMethods()).map(Method::getName))
+          .doesNotContain("preview");
+      assertThatThrownBy(() -> Class.forName("page.poli.sdk.model.PreviewResult"))
+          .isInstanceOf(ClassNotFoundException.class);
+      assertThatThrownBy(() -> Class.forName("page.poli.sdk.input.InlineModeInput"))
+          .isInstanceOf(ClassNotFoundException.class);
     }
 
     @Test
