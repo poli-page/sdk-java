@@ -76,8 +76,8 @@ public final class PoliPageErrorCode {
   // -- Not found / gone -------------------------------------------------
 
   /**
-   * HTTP 404. Generic resource not found. An unknown route answers a bare {@code 404} with no JSON
-   * body, which the SDK reports as {@link #INTERNAL_ERROR} with status {@code 404}.
+   * HTTP 404. Generic resource not found. An unknown route answers a plain-text {@code 404} without
+   * this code.
    */
   public static final String NOT_FOUND = "NOT_FOUND";
 
