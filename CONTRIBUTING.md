@@ -42,31 +42,40 @@ To skip integration tests on push (the default), simply run without
 
 ## Releasing
 
-Releases are **manual**. There is no CI workflow that auto-publishes —
-by design. The Maven Central publish step requires GPG signing of the
-artifact, and we keep the human gate where the maintainer reviews the
-staged release before it ships.
+Releases are **tag-driven** and publish to Maven Central through the
+Sonatype Central Portal ([`release.yml`](.github/workflows/release.yml)).
+A tag alone never publishes: the publish job waits for a maintainer to
+approve it on the `maven-central-release` environment. Central releases
+are immutable — a version can never be deleted or replaced.
 
 1. Bump `<version>` in `pom.xml`.
 2. Move `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md`.
 3. If a MAJOR bump, add a section to `MIGRATION.md`.
-4. Commit `chore(release): vX.Y.Z` on `main`.
-5. Run the pre-flight verification locally:
+4. Merge `chore(release): vX.Y.Z` to `main` and wait for CI to go green.
+5. Optional local dry run (needs the release GPG key): build the signed
+   bundle without uploading anything:
    ```bash
-   ./mvnw clean verify -P release
+   ./mvnw -B -P release -Dcentral.skipUpload=true deploy
    ```
-   The `release` profile runs the full build, generates the sources +
-   javadoc JARs, signs all three with GPG, and stages them under
-   `target/staging-deploy/`.
-6. Inspect the staged artifacts (`ls -la target/staging-deploy/`).
-7. Tag locally: `git tag vX.Y.Z`.
-8. Push the tag when ready: `git push origin vX.Y.Z`.
-9. Push to OSSRH staging: `./mvnw deploy -P release`.
-10. Log in to <https://central.sonatype.com>, verify the staged
-    repository, and close + release it. This is the irreversible step;
-    do it from a clean machine state.
-11. Optionally create a GitHub Release from the tag for the changelog
-    excerpt — `gh release create vX.Y.Z --notes-from-tag`.
+   The bundle is written to `target/central-publishing/central-bundle.zip`.
+   Add `-Djapicmp.skip=true` only if nothing is on Central yet.
+6. Tag the merge commit and push the tag:
+   `git tag vX.Y.Z <sha> && git push origin vX.Y.Z`.
+7. The `verify` job checks that the tag matches `pom.xml`, runs the
+   full build and the unsigned release-profile build (sources + javadoc
+   JARs, japicmp against the previous release on Central).
+8. Approve the `publish` job in the Actions UI. It signs, uploads to the
+   Central Portal, auto-publishes, waits until the deployment is
+   PUBLISHED, then creates the GitHub Release from the `CHANGELOG.md`
+   section.
+9. Check `https://repo1.maven.org/maven2/page/poli/sdk/X.Y.Z/` (Central
+   sync can take 10–30 minutes after PUBLISHED).
+
+The Central user token and the GPG key live as environment secrets on
+`maven-central-release` (`CENTRAL_USERNAME`, `CENTRAL_PASSWORD`,
+`GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`). The signing key is
+`2DBB20D4D79D527DE02B8C3635C61308FA37BB15`, published on
+keys.openpgp.org.
 
 ### Stable vs. prerelease channels
 
@@ -81,8 +90,8 @@ stable versions by default; users opt in with explicit version pins.
    compatibility with `versions-maven-plugin`.
 2. Move `[Unreleased]` → `[2.0.0-RC1] - YYYY-MM-DD` in `CHANGELOG.md`.
 3. Commit `chore(release): v2.0.0-RC1`.
-4. Run the pre-flight + sign + deploy steps above. OSSRH routes the
-   prerelease alongside the stable release.
+4. Tag `v2.0.0-RC1` and approve the publish job, as above. The workflow
+   marks the GitHub Release as a prerelease.
 
 Users opt in:
 
@@ -102,7 +111,7 @@ minus the suffix:
 1. Bump `<version>` to `2.0.0` (drop the suffix).
 2. Move the prerelease entries in `CHANGELOG.md` under
    `[2.0.0] - YYYY-MM-DD`.
-3. Commit, tag, sign, deploy.
+3. Merge, tag `v2.0.0`, approve the publish job.
 
 Stable and prerelease versions must never share a tag — once a
 prerelease is promoted, the next prerelease starts a new pre-suffix

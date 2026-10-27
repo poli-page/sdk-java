@@ -1,0 +1,187 @@
+name: Release
+
+# Tag-driven publish to Maven Central through the Sonatype Central Portal.
+#
+#   bump pom.xml <version> + CHANGELOG on main → CI green → push tag vX.Y.Z
+#     → verify job (asserts tag == pom.xml version, full build, unsigned
+#       release-profile build: sources + javadoc jars, japicmp)
+#     → publish job PAUSES on the `maven-central-release` environment for
+#       manual approval
+#     → on approval: sign, upload, auto-publish, wait until PUBLISHED,
+#       then create the GitHub Release
+#
+# Central releases are immutable: a version can never be deleted or replaced.
+#
+# The Central token and the GPG key are long-lived, so they are environment
+# secrets on `maven-central-release`: only the approved publish job can read
+# CENTRAL_USERNAME, CENTRAL_PASSWORD, GPG_PRIVATE_KEY and GPG_PASSPHRASE.
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      japicmp_skip: ${{ steps.baseline.outputs.japicmp_skip }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # The tag is only the trigger — the version of record is pom.xml. Refuse
+      # to publish if they disagree, so a mistyped tag can never ship the wrong
+      # version to the immutable repository.
+      - name: Resolve version + assert tag matches pom.xml
+        id: resolve
+        run: |
+          set -euo pipefail
+          POM_VERSION="$(./mvnw -B -q -Dexpression=project.version -DforceStdout help:evaluate)"
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "$TAG" != "v${POM_VERSION}" ]]; then
+            echo "::error::Tag '$TAG' does not match pom.xml version ('v${POM_VERSION}'). Bump pom.xml and re-tag." >&2
+            exit 1
+          fi
+          if [[ "$POM_VERSION" == *-SNAPSHOT ]]; then
+            echo "::error::pom.xml version '$POM_VERSION' is a SNAPSHOT; Central only takes releases." >&2
+            exit 1
+          fi
+          echo "version=${POM_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${TAG} (pom.xml = ${POM_VERSION})"
+
+      # japicmp diffs the public API against the latest release on Central.
+      # Before the first release there is nothing to diff against, so skip it
+      # only while page.poli:sdk has no metadata on Central.
+      - name: Detect japicmp baseline on Central
+        id: baseline
+        run: |
+          set -euo pipefail
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' \
+            https://repo1.maven.org/maven2/page/poli/sdk/maven-metadata.xml)"
+          case "$CODE" in
+            200) echo "japicmp_skip=false" >> "$GITHUB_OUTPUT"
+                 echo "Baseline found on Central — japicmp runs." ;;
+            404) echo "japicmp_skip=true" >> "$GITHUB_OUTPUT"
+                 echo "No release on Central yet — japicmp skipped (first release)." ;;
+            *)   echo "::error::Unexpected HTTP $CODE from repo1.maven.org." >&2
+                 exit 1 ;;
+          esac
+
+      - run: ./mvnw -B spotless:check
+      - run: ./mvnw -B verify
+
+      # Proves the sources and javadoc jars build (doclint, failOnError) and
+      # runs japicmp, without needing the signing key.
+      - name: Release profile build (unsigned)
+        run: |
+          ./mvnw -B -P release -Dgpg.skip -DskipTests \
+            -Djapicmp.skip=${{ steps.baseline.outputs.japicmp_skip }} verify
+
+  publish:
+    name: publish
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Manual-approval gate: `maven-central-release` has a required reviewer
+    # and only accepts v* tags. The job blocks here until approved.
+    environment:
+      name: maven-central-release
+      url: https://central.sonatype.com/artifact/page.poli/sdk/${{ needs.verify.outputs.version }}
+    permissions:
+      contents: write   # create the GitHub Release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Writes ~/.m2/settings.xml with a `central` server whose credentials
+      # come from the env vars below, and imports the signing key.
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          server-id: central
+          server-username-env-var: MAVEN_CENTRAL_USERNAME
+          server-password-env-var: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase-env-var: MAVEN_GPG_PASSPHRASE
+
+      # Idempotency: if this version is already on Central (e.g. a re-run after
+      # the GitHub Release step failed), skip the upload but still cut the
+      # Release. Central would reject a second upload of the same version.
+      - name: Check whether version is already published
+        id: published
+        run: |
+          set -euo pipefail
+          VER="${{ needs.verify.outputs.version }}"
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' \
+            "https://repo1.maven.org/maven2/page/poli/sdk/${VER}/sdk-${VER}.pom")"
+          if [[ "$CODE" == "200" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "page.poli:sdk:${VER} is already on Central — will skip deploy."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "page.poli:sdk:${VER} not on Central yet (HTTP ${CODE}) — will deploy."
+          fi
+
+      # Tests already ran on this exact commit in the verify job.
+      # maven-gpg-plugin reads the passphrase from MAVEN_GPG_PASSPHRASE.
+      - name: Deploy to Maven Central
+        if: steps.published.outputs.exists == 'false'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          ./mvnw -B -P release -DskipTests \
+            -Djapicmp.skip=${{ needs.verify.outputs.japicmp_skip }} \
+            -Dcentral.autoPublish=true \
+            -Dcentral.waitUntil=published \
+            deploy
+
+      - name: Extract CHANGELOG section for release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          VER="${{ needs.verify.outputs.version }}"
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          awk -v ver="$VER" '
+            $0 ~ ("^## \\[" ver "\\]") { cap = 1; next }
+            cap && /^## \[/             { exit }
+            cap                         { print }
+          ' CHANGELOG.md > "$NOTES"
+          if [[ ! -s "$NOTES" ]]; then
+            echo "_See [CHANGELOG.md](CHANGELOG.md) for details._" > "$NOTES"
+          fi
+          echo "file=$NOTES" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          PRERELEASE=""
+          [[ "$TAG" == *-* ]] && PRERELEASE="--prerelease"   # vX.Y.Z-RC1 etc.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping."
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --verify-tag \
+              --notes-file "${{ steps.notes.outputs.file }}" \
+              $PRERELEASE
+          fi
