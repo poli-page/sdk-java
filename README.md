@@ -15,15 +15,7 @@ Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs fr
 
 ## Install
 
-`page.poli:sdk` is not published yet: build it from source. It is not on Maven Central, so the coordinates below resolve only from your local Maven repository (`~/.m2`) once you have installed it.
-
-```bash
-git clone https://github.com/poli-page/sdk-java.git
-cd sdk-java
-./mvnw -B install -DskipTests
-```
-
-Then depend on the installed version. Maven:
+`page.poli:sdk` is on Maven Central. Maven:
 
 ```xml
 <dependency>
@@ -33,13 +25,19 @@ Then depend on the installed version. Maven:
 </dependency>
 ```
 
-Gradle (Kotlin DSL), with `mavenLocal()` in `repositories`:
+Gradle (Kotlin DSL):
 
 ```kotlin
 implementation("page.poli:sdk:0.10.0")
 ```
 
-Prereleases: none has been published yet. Once one is on Maven Central (a version with a suffix such as `-RC1`, see [CONTRIBUTING.md](CONTRIBUTING.md#stable-vs-prerelease-channels)), Maven and Gradle resolve it only when you pin that exact version, e.g. `<version>X.Y.Z-RC1</version>` or `page.poli:sdk:X.Y.Z-RC1`.
+Gradle (Groovy DSL):
+
+```groovy
+implementation 'page.poli:sdk:0.10.0'
+```
+
+Prereleases (a version with a suffix such as `-RC1`, see [CONTRIBUTING.md](CONTRIBUTING.md#stable-vs-prerelease-channels)) resolve only when you pin that exact version, e.g. `<version>X.Y.Z-RC1</version>` or `page.poli:sdk:X.Y.Z-RC1`.
 
 Requires Java 17 or later. Runtime dependencies: `org.slf4j:slf4j-api` and `com.fasterxml.jackson.core:jackson-databind` (JSON).
 
@@ -385,7 +383,7 @@ CI exercises Java 17, 21, and 25 on Linux, plus Java 21 on Windows and macOS.
 - SDK reference: [poli-page.github.io/sdk-java](https://poli-page.github.io/sdk-java/reference/client/)
 - Sign up & generate API keys: [app.poli.page](https://app.poli.page)
 - Issues: [github.com/poli-page/sdk-java/issues](https://github.com/poli-page/sdk-java/issues)
-- Support: support@poli.page
+- Support: contact@poli.page
 
 ## License
 
