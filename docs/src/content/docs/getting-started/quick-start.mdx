@@ -11,18 +11,20 @@ This page walks through your first render — from key to PDF — without touchi
 
 ## Set your API key
 
-Export your key into the environment your program runs in:
+Use a `sandbox` key (`pp_sandbox_…`) of a fresh organization, and export it into the environment your program runs in:
 
 ```bash
-export POLI_PAGE_API_KEY=pp_test_...
+export POLI_PAGE_API_KEY=pp_sandbox_x   # replace with your key
 ```
 
 ## Render a PDF
 
+Every organization gets a `getting-started` project, published into its `sandbox` environment when the organization is created, with a `welcome` template. A sandbox key renders it with no setup:
+
 ```java
 import java.util.Map;
 import page.poli.sdk.PoliPageClient;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 
 class Example {
     public static void main(String[] args) {
@@ -30,10 +32,10 @@ class Example {
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
             .build();
 
-        ProjectModeInput input = ProjectModeInput.builder()
-            .project("billing")
-            .template("invoice")
-            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+        RenderInput input = RenderInput.builder()
+            .project("getting-started")
+            .template("welcome")
+            .data(Map.of("name", "SDK Demo"))
             .build();
 
         byte[] pdf = client.render().pdf(input);
@@ -41,7 +43,13 @@ class Example {
 }
 ```
 
-`pdf` is a `byte[]`. Write it to disk, stream it to S3, or return it directly from an HTTP handler.
+`pdf` is a `byte[]`. Write it to disk, stream it to S3, or return it directly from an HTTP handler. Sandbox renders are watermarked and are not counted toward your quota.
+
+`getting-started` is a normal, editable project: in an organization that renamed it, deleted it or removed it from `sandbox`, the API answers `404 PROJECT_NOT_FOUND` or `404 PROJECT_NOT_IN_ENVIRONMENT`, so use a fresh organization to follow along.
+
+## Your own templates
+
+There is no version to pick: a render uses the project's copy published in the API key's environment. Publish your project to the environment of the key you render with, then swap the slugs. To preview a template or render inline HTML while you design it, use the playground: [play.poli.page](https://play.poli.page).
 
 ## Example
 
@@ -50,7 +58,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import page.poli.sdk.PoliPageClient;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 
 class Example {
     public static void main(String[] args) throws Exception {
@@ -58,19 +66,19 @@ class Example {
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
             .build();
 
-        ProjectModeInput input = ProjectModeInput.builder()
-            .project("billing")
-            .template("invoice")
-            .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
+        RenderInput input = RenderInput.builder()
+            .project("getting-started")
+            .template("welcome")
+            .data(Map.of("name", "SDK Demo"))
             .build();
 
         byte[] pdf = client.render().pdf(input);
-        Files.write(Path.of("./invoice.pdf"), pdf);
+        Files.write(Path.of("./welcome.pdf"), pdf);
     }
 }
 ```
 
 ## See also
 - [Authentication](../../concepts/authentication/)
-- [Render modes](../../concepts/render-modes/)
+- [Render input](../../concepts/render-modes/)
 - [Output handling](../../concepts/output-handling/)

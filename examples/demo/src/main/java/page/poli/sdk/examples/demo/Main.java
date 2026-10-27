@@ -14,6 +14,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import page.poli.sdk.PoliPageClient;
 import page.poli.sdk.exception.PoliPageAuthException;
 import page.poli.sdk.exception.PoliPageException;
@@ -25,13 +26,21 @@ import page.poli.sdk.model.ThumbnailFormat;
 import page.poli.sdk.model.ThumbnailOptions;
 
 /**
- * Walks through every public method of the Poli Page Java SDK end-to-end against the develop API.
- * See {@code examples/demo/README.md} for run instructions.
+ * Walks through every public method of the Poli Page Java SDK end-to-end against the Poli Page API,
+ * with a {@code sandbox} key. See {@code examples/demo/README.md} for run instructions.
  */
 public final class Main {
 
   private static final String DEFAULT_BASE_URL = "https://api.poli.page";
   private static final int TOTAL_STEPS = 9;
+
+  /**
+   * Full-key format shared by every Poli Page SDK: {@code pp_{env}_{32 lowercase hex}}. It checks
+   * the shape only, never the environment name.
+   */
+  private static final Pattern API_KEY_PATTERN =
+      Pattern.compile("^pp_(?=[a-z][a-z0-9-]{0,19}_)[a-z][a-z0-9]*(?:-[a-z0-9]+)*_[0-9a-f]{32}$");
+
   private static final RenderInput INPUT =
       RenderInput.builder()
           .project("getting-started")
@@ -65,7 +74,7 @@ public final class Main {
     step6DocumentsThumbnails(client, doc.documentId());
     step7DocumentsPreview(client, doc.documentId());
     step8DocumentsDelete(client, doc.documentId());
-    step9ErrorHandling(client);
+    step9NotFound(client);
 
     Console.println("");
     Console.println(
@@ -204,8 +213,8 @@ public final class Main {
     Console.println("  " + Console.green("✔ ") + "deleted " + documentId);
   }
 
-  private static void step9ErrorHandling(PoliPageClient client) {
-    Console.step(9, TOTAL_STEPS, "error handling — DEMO ONLY (we trigger an error on purpose)");
+  private static void step9NotFound(PoliPageClient client) {
+    Console.step(9, TOTAL_STEPS, "not-found — DEMO ONLY (we trigger an error on purpose)");
     Console.println(
         Console.yellow("  ⚠  This step is intentional — the SDK is about to throw, but the"));
     Console.println(
@@ -217,7 +226,7 @@ public final class Main {
                 + " TEMPLATE_NOT_FOUND.)"));
     Console.println("");
 
-    RenderInput bad =
+    RenderInput notFound =
         RenderInput.builder()
             .project("getting-started")
             .template("does-not-exist")
@@ -225,24 +234,28 @@ public final class Main {
             .build();
 
     try {
-      client.render().pdf(bad);
+      client.render().pdf(notFound);
       Console.println(
           "  " + Console.red("✗ unexpected: the call succeeded but should have failed"));
       System.exit(1);
     } catch (PoliPageException e) {
+      if (!"TEMPLATE_NOT_FOUND".equals(e.code()) || e.statusCode() != 404) {
+        throw e;
+      }
       Console.println(
           "  " + Console.green("✔ ") + "Error caught successfully. PoliPageException exposed:");
-      Console.println("     " + Console.dim("type:        ") + e.getClass().getSimpleName());
-      Console.println("     " + Console.dim("code:        ") + e.code());
-      Console.println("     " + Console.dim("statusCode:  ") + e.statusCode());
-      Console.println("     " + Console.dim("requestId:   ") + e.requestId());
-      Console.println("     " + Console.dim("isRetryable: ") + e.isRetryable());
+      Console.println("     " + Console.dim("type:       ") + e.getClass().getSimpleName());
+      Console.println("     " + Console.dim("code:       ") + e.code());
+      Console.println("     " + Console.dim("statusCode: ") + e.statusCode());
+      Console.println("     " + Console.dim("message:    ") + e.getMessage());
+      Console.println("     " + Console.dim("requestId:  ") + e.requestId());
     }
   }
 
   /**
    * Three-tier resolution: env var wins, then {@code .env} at the repo root, then an interactive
-   * prompt that persists a valid pasted key to {@code .env} for future runs.
+   * prompt that persists a pasted key to {@code .env} for future runs once it matches {@link
+   * #API_KEY_PATTERN}.
    */
   private static String ensureApiKey() throws IOException {
     String fromEnv = System.getenv("POLI_PAGE_API_KEY");
@@ -280,9 +293,18 @@ public final class Main {
     Console.println(Console.bold(Console.yellow("   No POLI_PAGE_API_KEY found.")));
     Console.println(rule);
     Console.println("");
-    Console.println("   This demo needs a sandbox key (" + Console.cyan("pp_sandbox_*") + ") to");
-    Console.println("   talk to the Poli Page API. Sandbox keys never bill or send real");
-    Console.println("   documents.");
+    Console.println(
+        "   This demo needs a "
+            + Console.cyan("sandbox")
+            + " key ("
+            + Console.cyan("pp_sandbox_…")
+            + ") to talk");
+    Console.println("   to the Poli Page API. Sandbox renders are watermarked, never count");
+    Console.println("   toward your quota, and their documents expire after 30 days.");
+    Console.println(
+        "   Use a fresh organization: the demo renders its " + Console.cyan("getting-started"));
+    Console.println(
+        "   project, which every organization gets in " + Console.cyan("sandbox") + ".");
     Console.println("");
     Console.println(Console.bold("   How to get one:"));
     Console.println("     1. Sign in at " + Console.cyan("https://app.poli.page"));
@@ -291,7 +313,8 @@ public final class Main {
     Console.println(
         Console.dim("        (replace {YOUR_ORG} with your org slug — visible in the"));
     Console.println(Console.dim("         dashboard URL when you're inside your organization)"));
-    Console.println("     3. Click \"Create key\" and copy");
+    Console.println(
+        "     3. Click \"Create key\" for the " + Console.cyan("sandbox") + " environment and copy");
     Console.println("        the value (starts with " + Console.cyan("pp_sandbox_") + ").");
     Console.println("");
     Console.println(
@@ -303,12 +326,15 @@ public final class Main {
 
     BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
     System.out.print(
-        Console.bold("   Paste your pp_sandbox_* key") + " (or Ctrl-C to cancel): ");
+        Console.bold("   Paste your sandbox key") + " (or Ctrl-C to cancel): ");
     String line = in.readLine();
     String key = line == null ? "" : line.trim();
 
-    if (key.isEmpty()) {
-      Console.println("\n  " + Console.red("✗") + " No key entered. Aborting.\n");
+    if (!API_KEY_PATTERN.matcher(key).matches()) {
+      Console.println(
+          "\n  "
+              + Console.red("✗")
+              + " Expected a key of the form `pp_{env}_{32 lowercase hex}`. Aborting.\n");
       System.exit(1);
     }
 

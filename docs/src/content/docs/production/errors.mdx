@@ -46,11 +46,15 @@ Returned by the Poli Page API. Uppercase, SCREAMING_SNAKE_CASE. The SDK forwards
 <ErrorTable errors={[
   { code: 'INVALID_API_KEY', when: 'The API key is malformed or revoked.', recovery: 'Rotate the key in the dashboard.' },
   { code: 'MISSING_API_KEY', when: 'No API key was provided in the request.', recovery: 'Check the builder was called with `apiKey`.' },
-  { code: 'NOT_FOUND', when: 'The project/template slug or documentId does not exist.', recovery: 'Verify the slug/id; check the template is published in this environment.' },
+  { code: 'PROJECT_NOT_FOUND', when: 'No project has this slug in the organization.', recovery: 'Verify the project slug.' },
+  { code: 'PROJECT_NOT_IN_ENVIRONMENT', when: 'The project is not published in the API key\'s environment.', recovery: 'Publish the project to that environment, or use a key of the environment it is published in.' },
+  { code: 'TEMPLATE_NOT_FOUND', when: 'The project has no template with this slug.', recovery: 'Verify the template slug.' },
+  { code: 'DOCUMENT_NOT_FOUND', when: 'No stored document matches the documentId.', recovery: 'Verify the id.' },
   { code: 'VALIDATION_ERROR', when: 'The `data` map does not satisfy the template schema.', recovery: 'Inspect the template schema in the dashboard.' },
   { code: 'MISSING_DATA', when: 'The request body lacks a required `data` field.', recovery: 'Pass `data(Map.of())` (or with values) on every render call.' },
-  { code: 'QUOTA_EXCEEDED', when: 'You exceeded the per-key rate limit or monthly quota.', recovery: 'Automatically retried; bump tier for sustained higher throughput.' },
-  { code: 'PAYMENT_REQUIRED', when: 'The organization billing is past due.', recovery: 'Update the payment method in the dashboard.' },
+  { code: 'QUOTA_EXCEEDED', when: 'You exceeded the monthly quota.', recovery: 'Automatically retried; bump tier for sustained higher throughput.' },
+  { code: 'RATE_LIMIT_EXCEEDED', when: 'You exceeded the request rate limit.', recovery: 'Automatically retried, honouring `Retry-After`.' },
+  { code: 'ORGANIZATION_PAYMENT_GRACE', when: 'The organization is in its payment grace period (HTTP 403).', recovery: 'Update the payment method in the dashboard.' },
   { code: 'INTERNAL_ERROR', when: 'The API returned 5xx.', recovery: 'Automatically retried; contact support if it persists.' },
 ]} />
 
@@ -63,7 +67,7 @@ import java.util.Map;
 import page.poli.sdk.PoliPageClient;
 import page.poli.sdk.PoliPageErrorCode;
 import page.poli.sdk.exception.PoliPageException;
-import page.poli.sdk.input.ProjectModeInput;
+import page.poli.sdk.input.RenderInput;
 
 class Example {
     public static void main(String[] args) {
@@ -71,7 +75,7 @@ class Example {
             .apiKey(System.getenv("POLI_PAGE_API_KEY"))
             .build();
 
-        ProjectModeInput input = ProjectModeInput.builder()
+        RenderInput input = RenderInput.builder()
             .project("billing")
             .template("invoice")
             .data(Map.of("invoiceNumber", "INV-001", "total", 1280))
