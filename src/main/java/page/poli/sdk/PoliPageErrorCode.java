@@ -32,7 +32,7 @@ public final class PoliPageErrorCode {
   /** HTTP 401. The request has no {@code Authorization: Bearer pp_…} API key. */
   public static final String MISSING_API_KEY = "MISSING_API_KEY";
 
-  /** HTTP 401. The API key is unknown or revoked. */
+  /** HTTP 401. The API key is unknown, revoked, or bound to a deleted environment. */
   public static final String INVALID_API_KEY = "INVALID_API_KEY";
 
   /**
@@ -75,7 +75,10 @@ public final class PoliPageErrorCode {
 
   // -- Not found / gone -------------------------------------------------
 
-  /** HTTP 404. Resource not found (generic), for example a removed route. */
+  /**
+   * HTTP 404. Generic resource not found. An unknown route answers a bare {@code 404} with no JSON
+   * body, which the SDK reports as {@link #INTERNAL_ERROR} with status {@code 404}.
+   */
   public static final String NOT_FOUND = "NOT_FOUND";
 
   /** HTTP 404. No project with this slug in the key's organization. */
