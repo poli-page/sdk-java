@@ -29,7 +29,7 @@
     <developer>
       <id>poli-page</id>
       <name>Poli Page</name>
-      <email>support@poli.page</email>
+      <email>contact@poli.page</email>
       <organization>Poli Page</organization>
       <organizationUrl>https://poli.page</organizationUrl>
     </developer>
@@ -80,6 +80,15 @@
     <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
     <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
     <japicmp-maven-plugin.version>0.26.3</japicmp-maven-plugin.version>
+
+    <!-- Central Portal publishing (release profile). Safe local defaults:
+         upload and stop at validation. release.yml passes
+         -Dcentral.autoPublish=true -Dcentral.waitUntil=published after the
+         maintainer approves; -Dcentral.skipUpload=true builds the signed
+         bundle without uploading anything (dry run). -->
+    <central.autoPublish>false</central.autoPublish>
+    <central.waitUntil>validated</central.waitUntil>
+    <central.skipUpload>false</central.skipUpload>
   </properties>
 
   <dependencies>
@@ -317,8 +326,10 @@
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>
-              <autoPublish>false</autoPublish>
-              <waitUntil>validated</waitUntil>
+              <deploymentName>${project.groupId}:${project.artifactId}:${project.version}</deploymentName>
+              <autoPublish>${central.autoPublish}</autoPublish>
+              <waitUntil>${central.waitUntil}</waitUntil>
+              <skipUpload>${central.skipUpload}</skipUpload>
             </configuration>
           </plugin>
 

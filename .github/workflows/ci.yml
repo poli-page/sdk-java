@@ -108,6 +108,13 @@ jobs:
         if: steps.state.outputs.has_pom == 'true'
         run: ./mvnw -B javadoc:javadoc
 
+      # Same release-profile build as release.yml's verify job, so a doclint or
+      # sources-jar break shows up on the PR instead of on the release tag.
+      # Unsigned; japicmp is left to release.yml, which knows the baseline.
+      - name: Release profile (unsigned sources + javadoc jars)
+        if: steps.state.outputs.has_pom == 'true' && matrix.os == 'ubuntu-latest' && matrix.java == '21'
+        run: ./mvnw -B -P release -Dgpg.skip -Djapicmp.skip=true -DskipTests package
+
       - name: Install smoke
         if: steps.state.outputs.has_pom == 'true' && matrix.os == 'ubuntu-latest'
         run: |
