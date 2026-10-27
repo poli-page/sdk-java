@@ -4,8 +4,10 @@ import java.time.Duration;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Rate limit exceeded. HTTP {@code 429}. Codes are typically {@code QUOTA_EXCEEDED} (monthly quota)
- * or {@code OVERAGE_CAP_EXCEEDED} (paid overage cap hit).
+ * Rate limit or quota exceeded. HTTP {@code 429}. Codes: {@code RATE_LIMIT_EXCEEDED} (over 120
+ * render requests per 60 seconds per API key), {@code QUOTA_EXCEEDED} (the Free tier's monthly
+ * render quota is reached) and {@code OVERAGE_CAP_EXCEEDED} (a paid tier's monthly overage cap is
+ * reached).
  *
  * <p>The SDK has already retried internally up to {@code maxRetries} before surfacing this; back
  * off further at the caller level if you see it. The optional {@link #retryAfter()} reports the
