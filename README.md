@@ -108,13 +108,13 @@ Both surfaces share the same `PoliPageClient`: `client.render()` returns the blo
 
 ### Try it locally — runnable demo
 
-The repo ships an end-to-end demo that exercises every public method against the real API:
+The repo ships an end-to-end demo that walks through the blocking workflow against the real API:
 
 ```bash
 ./scripts/demo
 ```
 
-It reads `POLI_PAGE_API_KEY` and the optional `POLI_PAGE_BASE_URL`. Without a key, the first run prompts for a `sandbox` key (`pp_sandbox_…`) and saves it to `.env`; subsequent runs are silent. The demo renders `getting-started`/`welcome` and walks nine steps: `render().pdf` → `render().pdfStream` → `renderToFile` → `render().document` → `documents().get` → `documents().thumbnails` → `documents().preview` → `documents().delete` → `not-found` (a render of a template that does not exist, caught as `PoliPageException` with code `TEMPLATE_NOT_FOUND`). See [`examples/demo/README.md`](examples/demo/README.md) for details.
+It reads `POLI_PAGE_API_KEY` and the optional `POLI_PAGE_BASE_URL`. Without a key, the first run prompts for a `sandbox` key (`pp_sandbox_…`) and saves it to `.env`; subsequent runs do not prompt for a key. The demo renders `getting-started`/`welcome` and walks nine steps: `render().pdf` → `render().pdfStream` → `renderToFile` → `render().document` → `documents().get` → `documents().thumbnails` → `documents().preview` → `documents().delete` → `not-found` (a render of a template that does not exist, caught as `PoliPageException` with code `TEMPLATE_NOT_FOUND`). See [`examples/demo/README.md`](examples/demo/README.md) for details.
 
 ## Working with stored documents
 

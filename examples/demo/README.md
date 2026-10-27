@@ -1,6 +1,6 @@
 # `page.poli:sdk` — runnable demo
 
-A single CLI program that walks through every public method of the Java SDK
+A single CLI program that walks through the blocking workflow of the Java SDK
 end-to-end against the Poli Page API. The result is a set of files on disk
 (three PDFs, the page thumbnails and the stored document's HTML) plus a
 deliberate `PoliPageException` caught and inspected at the end.
