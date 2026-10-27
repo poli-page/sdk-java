@@ -3,9 +3,9 @@ package page.poli.sdk.exception;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The requested resource existed once but is permanently unavailable. HTTP {@code 410}. Typically a
- * soft-deleted document ({@code DOCUMENT_GONE}) or an organization that was purged ({@code
- * ORGANIZATION_PURGED}).
+ * The requested resource existed once but is permanently unavailable. HTTP {@code 410}. Codes:
+ * {@code DOCUMENT_GONE} (the document was deleted, or is a {@code sandbox} document older than 30
+ * days) and {@code ORGANIZATION_PURGED} (the organization is purged: every request is refused).
  */
 public final class PoliPageGoneException extends PoliPageException {
 
