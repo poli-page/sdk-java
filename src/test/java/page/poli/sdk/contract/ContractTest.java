@@ -234,6 +234,19 @@ class ContractTest {
             "the contract lists normalization " + id + ", which this test does not apply");
       }
     }
+    // The SDK's isRetryable() must agree with the contract's never-retried API codes.
+    for (JsonNode code : contract.path("policy").path("nonRetryableCodes")) {
+      for (int status : new int[] {429, 502, 503}) {
+        PoliPageException error = new PoliPageException(code.asText(), status, "x", null, null);
+        if (error.isRetryable()) {
+          fileProblems.add(
+              "policy.nonRetryableCodes lists "
+                  + code.asText()
+                  + ", but isRetryable() is true for it with status "
+                  + status);
+        }
+      }
+    }
     boolean runsCancellation = false;
     for (JsonNode sdk : contract.path("policy").path("cancellationSdks")) {
       runsCancellation |= SDK_NAME.equals(sdk.asText());
