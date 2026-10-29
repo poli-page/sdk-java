@@ -26,7 +26,7 @@ try (InputStream stream = client.render().pdfStream(input)) {
 
 ## Write to file (`renderToFile`)
 
-`PoliPageClient.renderToFile(input, path)` streams bytes directly to disk with bounded memory. The destination is overwritten if it already exists.
+`PoliPageClient.renderToFile(input, path)` streams bytes to disk with bounded memory. The PDF goes to a temporary file next to the destination, which is then moved onto it (atomically where the file system can): an existing destination is replaced only by a complete PDF, and a call that fails or is cancelled leaves it as it was.
 
 ```java
 client.renderToFile(input, Path.of("./invoices/INV-001.pdf"));

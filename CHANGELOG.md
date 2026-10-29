@@ -91,8 +91,13 @@ Conformance with the Poli Page API contract v1.3.0
   now with the SDK's `aborted` error (`Request was aborted`) as its cause, and
   `onError` fires once with it, and with nothing else for that call. A PDF
   stream that arrives after the cancel is closed; a cancel during
-  `renderToFileAsync`'s copy closes the stream, stops the copy and deletes
-  the partial file.
+  `renderToFileAsync`'s copy closes the stream and stops the copy.
+- `renderToFile` and `renderToFileAsync` write the PDF to a temporary file
+  next to the target, then move it onto the target (atomically where the
+  file system can). A call that fails or is cancelled, at any point, leaves
+  the target as it was and removes the temporary file; a file that existed
+  before is replaced only by a complete PDF. (They used to delete the target
+  first, then write into it.)
 - The JDK client's fixed 10 s connect timeout is gone: `requestTimeout`
   bounds the connect like the rest of the attempt. A connect that hung used to
   fail after 10 s with `Request timed out after <requestTimeout>ms`.
