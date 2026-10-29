@@ -9,12 +9,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 import page.poli.sdk.exception.PoliPageException;
@@ -123,11 +126,13 @@ public final class PoliPageClient {
   }
 
   /**
-   * Render the input as a PDF and stream the bytes directly to {@code path}, overwriting any
-   * existing file. Convenience over {@code render().pdfStream(input)} + manual copy.
+   * Render the input as a PDF and stream the bytes to {@code path}, replacing any existing file.
+   * Convenience over {@code render().pdfStream(input)} + manual copy.
    *
-   * <p>The underlying stream is closed before this method returns, even on failure. The PDF is not
-   * buffered in memory.
+   * <p>The PDF is written to a temporary file next to {@code path}, then moved onto it (atomically
+   * where the file system can): a call that fails or is interrupted leaves {@code path} as it was,
+   * and removes the temporary file. The underlying stream is closed before this method returns,
+   * even on failure. The PDF is not buffered in memory.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
@@ -137,7 +142,7 @@ public final class PoliPageClient {
    */
   public void renderToFile(RenderInput input, Path path) {
     try (InputStream stream = render.pdfStream(input)) {
-      Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
+      writeFile(stream, path, () -> false);
     } catch (IOException e) {
       throw calls.failed(
           new PoliPageException(
@@ -146,7 +151,9 @@ public final class PoliPageClient {
   }
 
   /**
-   * Async variant of {@link #renderToFile(RenderInput, Path)}.
+   * Async variant of {@link #renderToFile(RenderInput, Path)}, with the same temporary file: a call
+   * that fails or is cancelled, at any point, leaves {@code path} as it was. Cancelling the future
+   * during the copy closes the download and stops the copy.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
@@ -161,12 +168,14 @@ public final class PoliPageClient {
             (stream, call) -> {
               // An abort during the copy closes the stream, so the copy stops at once.
               call.onAbort(() -> Futures.discard(stream));
+              if (call.isCancelled()) {
+                return null;
+              }
               try (InputStream s = stream) {
-                Files.copy(s, path, StandardCopyOption.REPLACE_EXISTING);
+                writeFile(s, path, call::isCancelled);
               } catch (IOException | RuntimeException e) {
-                if (call.isDone()) {
-                  // Aborted: the abort is the call's one error; drop the partial file.
-                  deleteQuietly(path);
+                if (call.isCancelled()) {
+                  // Aborted: the abort is the call's one error.
                   return null;
                 }
                 if (e instanceof RuntimeException runtime) {
@@ -180,18 +189,50 @@ public final class PoliPageClient {
                         null,
                         e));
               }
-              if (call.isDone()) {
-                deleteQuietly(path);
-              }
               return null;
             });
+  }
+
+  /**
+   * Copy {@code stream} to a temporary file in {@code path}'s directory, then move it onto {@code
+   * path}. The target is touched only once the whole PDF is written and the call is not cancelled;
+   * otherwise only the temporary file is removed.
+   *
+   * @return whether the file was written
+   */
+  private static boolean writeFile(InputStream stream, Path path, BooleanSupplier cancelled)
+      throws IOException {
+    Path target = path.toAbsolutePath();
+    Path name = target.getFileName();
+    Path temp =
+        target.resolveSibling(
+            "." + (name != null ? name : "pdf") + "." + UUID.randomUUID() + ".part");
+    boolean moved = false;
+    try {
+      Files.copy(stream, temp);
+      if (cancelled.getAsBoolean()) {
+        return false;
+      }
+      try {
+        Files.move(
+            temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+      } catch (AtomicMoveNotSupportedException e) {
+        Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+      }
+      moved = true;
+      return true;
+    } finally {
+      if (!moved) {
+        deleteQuietly(temp);
+      }
+    }
   }
 
   private static void deleteQuietly(Path path) {
     try {
       Files.deleteIfExists(path);
     } catch (IOException ignored) {
-      // best effort: the call is already aborted
+      // best effort: the call already failed
     }
   }
 

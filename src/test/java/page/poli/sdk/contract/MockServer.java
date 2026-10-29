@@ -34,7 +34,7 @@ import org.jspecify.annotations.Nullable;
 public final class MockServer implements AutoCloseable {
 
   /** What the server does with one request. */
-  public sealed interface Reply permits Answer, Drop, Hang {}
+  public sealed interface Reply permits Answer, Drop, Hang, Stall {}
 
   /**
    * An HTTP answer.
@@ -59,6 +59,17 @@ public final class MockServer implements AutoCloseable {
 
   /** Never answer; the connection stays open until the client or the server closes it. */
   public record Hang() implements Reply {}
+
+  /**
+   * Send the status line and headers, announcing {@code contentLength} body bytes, then never send
+   * the body.
+   *
+   * @param status the status code
+   * @param headers response headers
+   * @param contentLength the announced body length
+   */
+  public record Stall(int status, Map<String, String> headers, int contentLength)
+      implements Reply {}
 
   /** Chooses the reply to the request with this 0-based arrival index. */
   @FunctionalInterface
@@ -252,7 +263,14 @@ public final class MockServer implements AutoCloseable {
         if (reply instanceof Drop) {
           return;
         }
-        if (reply instanceof Hang) {
+        if (reply instanceof Stall stall) {
+          StringBuilder head = new StringBuilder("HTTP/1.1 " + stall.status() + " Status\r\n");
+          stall.headers().forEach((k, v) -> head.append(k).append(": ").append(v).append("\r\n"));
+          head.append("Content-Length: ").append(stall.contentLength()).append("\r\n\r\n");
+          out.write(head.toString().getBytes(StandardCharsets.ISO_8859_1));
+          out.flush();
+        }
+        if (reply instanceof Hang || reply instanceof Stall) {
           // Discard anything else the client sends until it, or the server, closes.
           while (in.read() != -1) {
             // keep waiting
