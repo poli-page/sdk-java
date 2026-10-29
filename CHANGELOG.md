@@ -89,8 +89,10 @@ Conformance with the Poli Page API contract v1.3.0
   (it used to cancel only the returned future and let the retries and the
   download go on). `get()` / `join()` still throw `CancellationException`,
   now with the SDK's `aborted` error (`Request was aborted`) as its cause, and
-  `onError` fires once with it. A PDF stream that arrives after the cancel is
-  closed.
+  `onError` fires once with it, and with nothing else for that call. A PDF
+  stream that arrives after the cancel is closed; a cancel during
+  `renderToFileAsync`'s copy closes the stream, stops the copy and deletes
+  the partial file.
 - The JDK client's fixed 10 s connect timeout is gone: `requestTimeout`
   bounds the connect like the rest of the attempt. A connect that hung used to
   fail after 10 s with `Request timed out after <requestTimeout>ms`.
@@ -106,7 +108,8 @@ Conformance with the Poli Page API contract v1.3.0
 
 - Known error code `TEMPLATE_UNSAFE` (400: the template, a partial or an SVG
   asset holds an injection attempt; its message names it; not retried).
-- An explicit `serialVersionUID` on every exception class.
+- An explicit `serialVersionUID` on every exception class. Exceptions
+  serialized by 0.10.0, whose UID was computed, no longer deserialize.
 - Exception constructors that take a cause: `PoliPageAuthException`,
   `PoliPageValidationException`, `PoliPageNotFoundException`,
   `PoliPageGoneException` and `PoliPageRateLimitException`.
