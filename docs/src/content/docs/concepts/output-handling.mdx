@@ -26,7 +26,7 @@ try (InputStream stream = client.render().pdfStream(input)) {
 
 ## Write to file (`renderToFile`)
 
-`PoliPageClient.renderToFile(input, path)` streams bytes to disk with bounded memory. The PDF goes to a temporary file next to the destination, which is then moved onto it (atomically where the file system can): an existing destination is replaced only by a complete PDF, and a call that fails or is cancelled leaves it as it was.
+`PoliPageClient.renderToFile(input, path)` streams bytes to disk with bounded memory. The PDF goes to a temporary file next to the destination, which is then moved onto it (atomically where the file system can): a call that fails or is cancelled never leaves a partial file. The destination is either as it was or replaced by the complete PDF (a cancel that lands once the download is complete may still replace it).
 
 ```java
 client.renderToFile(input, Path.of("./invoices/INV-001.pdf"));

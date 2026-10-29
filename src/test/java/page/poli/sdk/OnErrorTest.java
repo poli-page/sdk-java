@@ -75,7 +75,14 @@ class OnErrorTest {
 
       assertThatThrownBy(() -> sdk.renderToFile(INPUT, notAFile))
           .isInstanceOfSatisfying(
-              PoliPageException.class, e -> assertThat(e.code()).isEqualTo("io_error"));
+              PoliPageException.class,
+              e -> {
+                assertThat(e.code()).isEqualTo("io_error");
+                // The message names the target, not the hidden temporary file.
+                assertThat(e.getMessage())
+                    .isEqualTo("Failed to write PDF to " + notAFile + ": NoSuchFileException");
+                assertThat(e.getCause().getMessage()).endsWith(".part");
+              });
       assertThatThrownBy(() -> sdk.renderToFileAsync(INPUT, notAFile).join())
           .cause()
           .isInstanceOfSatisfying(

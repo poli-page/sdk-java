@@ -28,7 +28,7 @@ try {
 
 ## Async facade
 
-Cancel the returned future with `cancel(true)`. The cancellation reaches the stage in flight: the HTTP exchange, the wait before a retry, or the PDF download of `pdf()` / `pdfStream()`. Cancelling `renderToFileAsync` closes the download and stops the copy; the target file stays as it was, since the PDF goes to a temporary file that is moved onto the target only once complete. Cancelling twice changes nothing: the second `cancel` returns `true` and `onError` stays at one call.
+Cancel the returned future with `cancel(true)`. The cancellation reaches the stage in flight: the HTTP exchange, the wait before a retry, or the PDF download of `pdf()` / `pdfStream()`. Cancelling `renderToFileAsync` closes the download and stops the copy. It never leaves a partial file: the PDF goes to a temporary file that is moved onto the target only once complete, so the target is either as it was or, if the cancel lands once the download is complete, replaced by the complete PDF. Cancelling twice changes nothing: the second `cancel` returns `true` and `onError` stays at one call.
 
 ```java
 CompletableFuture<byte[]> future = client.renderAsync().pdf(input);

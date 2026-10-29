@@ -130,9 +130,10 @@ public final class PoliPageClient {
    * Convenience over {@code render().pdfStream(input)} + manual copy.
    *
    * <p>The PDF is written to a temporary file next to {@code path}, then moved onto it (atomically
-   * where the file system can): a call that fails or is interrupted leaves {@code path} as it was,
-   * and removes the temporary file. The underlying stream is closed before this method returns,
-   * even on failure. The PDF is not buffered in memory.
+   * where the file system can): a call that fails or is interrupted never leaves a partial file,
+   * {@code path} is either as it was or the complete PDF, and the temporary file is removed. The
+   * underlying stream is closed before this method returns, even on failure. The PDF is not
+   * buffered in memory.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
@@ -144,16 +145,15 @@ public final class PoliPageClient {
     try (InputStream stream = render.pdfStream(input)) {
       writeFile(stream, path, () -> false);
     } catch (IOException e) {
-      throw calls.failed(
-          new PoliPageException(
-              "io_error", 0, "Failed to write PDF to " + path + ": " + e.getMessage(), null, e));
+      throw calls.failed(ioError(path, e));
     }
   }
 
   /**
    * Async variant of {@link #renderToFile(RenderInput, Path)}, with the same temporary file: a call
-   * that fails or is cancelled, at any point, leaves {@code path} as it was. Cancelling the future
-   * during the copy closes the download and stops the copy.
+   * that fails or is cancelled never leaves a partial file. {@code path} is either as it was or the
+   * complete PDF; a cancel that lands once the download is complete may still replace it.
+   * Cancelling the future during the copy closes the download and stops the copy.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
@@ -181,13 +181,7 @@ public final class PoliPageClient {
                 if (e instanceof RuntimeException runtime) {
                   throw runtime;
                 }
-                throw calls.failed(
-                    new PoliPageException(
-                        "io_error",
-                        0,
-                        "Failed to write PDF to " + path + ": " + e.getMessage(),
-                        null,
-                        e));
+                throw calls.failed(ioError(path, (IOException) e));
               }
               return null;
             });
@@ -226,6 +220,19 @@ public final class PoliPageClient {
         deleteQuietly(temp);
       }
     }
+  }
+
+  /**
+   * The {@code io_error} of a failed write. It names the target; the JDK exception, which may name
+   * the temporary file, is the cause.
+   */
+  private static PoliPageException ioError(Path path, IOException e) {
+    return new PoliPageException(
+        "io_error",
+        0,
+        "Failed to write PDF to " + path + ": " + e.getClass().getSimpleName(),
+        null,
+        e);
   }
 
   private static void deleteQuietly(Path path) {
