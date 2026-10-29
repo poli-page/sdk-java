@@ -23,7 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        java: ['17', '21', '25']
+        # 26: the newest JDK, whose CompletableFuture wraps a cancellation in join()/get().
+        java: ['17', '21', '25', '26']
         include:
           - os: windows-latest
             java: '21'
