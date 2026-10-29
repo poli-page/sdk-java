@@ -118,6 +118,7 @@ public final class RetryLoop {
         return success.response();
       }
       if (outcome instanceof Crash crash) {
+        hooks.error(crash.error());
         throw crash.unchecked();
       }
       Failure failure = (Failure) outcome;
@@ -239,6 +240,7 @@ public final class RetryLoop {
       try {
         exchange = call.send(capture);
       } catch (RuntimeException e) {
+        hooks.error(e);
         result.completeExceptionally(e);
         return;
       }
@@ -269,6 +271,7 @@ public final class RetryLoop {
         return;
       }
       if (outcome instanceof Crash crash) {
+        hooks.error(crash.error());
         result.completeExceptionally(crash.error());
         return;
       }

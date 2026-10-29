@@ -12,6 +12,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PoliPageValidationException extends PoliPageException {
 
+  private static final long serialVersionUID = 1L;
+
   /**
    * @param code the wire code
    * @param statusCode {@code 400} or {@code 422}

@@ -11,6 +11,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PoliPageAuthException extends PoliPageException {
 
+  private static final long serialVersionUID = 1L;
+
   /**
    * @param code the wire code
    * @param statusCode {@code 401} or {@code 403}

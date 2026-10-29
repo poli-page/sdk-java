@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import org.jspecify.annotations.Nullable;
-import page.poli.sdk.internal.Futures;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.DocumentPreviewResult;
 import page.poli.sdk.model.Thumbnail;
@@ -20,8 +19,10 @@ import page.poli.sdk.model.ThumbnailOptions;
  * CompletableFuture<T>} and {@code delete} returns {@code CompletableFuture<Void>}. Exceptions
  * inside the chain wrap in {@link CompletionException} per JDK convention.
  *
- * <p>Cancelling a returned future ({@code cancel(true)}) cancels the attempt in flight or the retry
- * wait, and no further request is sent.
+ * <p>Cancelling a returned future ({@code cancel(true)}) aborts the call: the attempt in flight,
+ * the retry wait or the download is cancelled and no further request is sent. {@code get()} and
+ * {@code join()} then throw a {@code CancellationException} whose {@code getCause()} is the SDK's
+ * {@code aborted} error, and {@code onError} fires once with it.
  */
 public final class DocumentsAsync {
 
@@ -37,21 +38,25 @@ public final class DocumentsAsync {
   /** Async variant of {@link Documents#get(String)}. */
   public CompletableFuture<DocumentDescriptor> get(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    return Futures.map(
-        calls.sendAsync("GET", path),
-        response -> calls.json(response, path, DocumentDescriptor.class));
+    return calls
+        .futures()
+        .map(
+            calls.sendAsync("GET", path),
+            response -> calls.json(response, path, DocumentDescriptor.class));
   }
 
   /** Async variant of {@link Documents#preview(String)}. */
   public CompletableFuture<DocumentPreviewResult> preview(String id) {
     String path = DOCUMENTS_PATH + encode(id) + "/preview";
-    return Futures.map(
-        calls.sendAsync("GET", path),
-        response -> {
-          String html = new String(response.body(), StandardCharsets.UTF_8);
-          String count = response.headers().firstValue(PAGE_COUNT_HEADER).orElse(null);
-          return new DocumentPreviewResult(html, parsePageCount(count));
-        });
+    return calls
+        .futures()
+        .map(
+            calls.sendAsync("GET", path),
+            response -> {
+              String html = new String(response.body(), StandardCharsets.UTF_8);
+              String count = response.headers().firstValue(PAGE_COUNT_HEADER).orElse(null);
+              return new DocumentPreviewResult(html, parsePageCount(count));
+            });
   }
 
   /**
@@ -67,14 +72,18 @@ public final class DocumentsAsync {
   /** Async variant of {@link Documents#thumbnails(String, ThumbnailOptions)}. */
   public CompletableFuture<List<Thumbnail>> thumbnails(String id, ThumbnailOptions options) {
     String path = DOCUMENTS_PATH + encode(id) + "/thumbnails";
-    return Futures.map(
-        calls.postAsync(path, Documents.thumbnailsWireBody(options), options.idempotencyKey()),
-        response -> calls.json(response, path, ThumbnailResponse.class).thumbnails());
+    return calls
+        .futures()
+        .map(
+            calls.postAsync(path, Documents.thumbnailsWireBody(options), options.idempotencyKey()),
+            response -> calls.json(response, path, ThumbnailResponse.class).thumbnails());
   }
 
   /** Async variant of {@link Documents#delete(String)}. */
   public CompletableFuture<Void> delete(String id) {
-    return Futures.map(calls.sendAsync("DELETE", DOCUMENTS_PATH + encode(id)), response -> null);
+    return calls
+        .futures()
+        .map(calls.sendAsync("DELETE", DOCUMENTS_PATH + encode(id)), response -> null);
   }
 
   /**
@@ -85,7 +94,7 @@ public final class DocumentsAsync {
    *     CompletionException(PoliPageDownloadException)} on non-2xx or transport failure
    */
   public CompletableFuture<byte[]> downloadPdf(DocumentDescriptor descriptor) {
-    return calls.download().bytesAsync(descriptor.presignedPdfUrl());
+    return calls.futures().map(calls.download().bytesAsync(descriptor.presignedPdfUrl()), b -> b);
   }
 
   // -- internals -----------------------------------------------------

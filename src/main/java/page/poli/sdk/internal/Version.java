@@ -1,9 +1,8 @@
 package page.poli.sdk.internal;
 
 /**
- * SDK version embedded in the {@code User-Agent} header. Bumped manually as part of the release
- * checklist (see {@code sdk-java-plan.md} §12). Kept in lockstep with the {@code pom.xml} {@code
- * <version>} element.
+ * SDK version embedded in the {@code User-Agent} header. Bumped manually with each release, in
+ * lockstep with the {@code pom.xml} {@code <version>} element.
  */
 public final class Version {
 

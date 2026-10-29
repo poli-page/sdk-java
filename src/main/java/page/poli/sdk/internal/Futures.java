@@ -2,17 +2,26 @@ package page.poli.sdk.internal;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import org.jspecify.annotations.Nullable;
 
 /**
- * Chaining for the async facades that keeps cancellation working: cancelling the future handed to
- * the caller cancels the stage in flight upstream (an attempt, a retry wait, the download), which
- * {@link CompletableFuture#thenApply} and {@link CompletableFuture#thenCompose} do not do. Errors
- * reach the returned future unwrapped, so {@code join()} throws {@code
- * CompletionException(PoliPageException)} as before.
+ * Builds the {@link CallFuture}s the async facades return. Cancelling one cancels the stage in
+ * flight upstream (an attempt, a retry wait, the download), which {@link
+ * CompletableFuture#thenApply} and {@link CompletableFuture#thenCompose} do not do. A value that
+ * arrives after the call was cancelled is closed when it is closeable (a PDF stream), so no
+ * connection leaks. Errors reach the returned future unwrapped, so {@code join()} throws {@code
+ * CompletionException(PoliPageException)}.
  */
 public final class Futures {
 
-  private Futures() {}
+  private final Hooks hooks;
+
+  /**
+   * @param hooks the client's hooks; {@code onError} fires when a call is cancelled
+   */
+  public Futures(Hooks hooks) {
+    this.hooks = hooks;
+  }
 
   /**
    * @param upstream the stage in flight
@@ -21,20 +30,18 @@ public final class Futures {
    * @param <R> result type
    * @return a future of {@code fn(value)}; cancelling it cancels {@code upstream}
    */
-  public static <T, R> CompletableFuture<R> map(
+  public <T, R> CallFuture<R> map(
       CompletableFuture<T> upstream, Function<? super T, ? extends R> fn) {
-    CompletableFuture<R> result = new CompletableFuture<>();
-    cancelWith(result, upstream);
+    CallFuture<R> result = new CallFuture<>(hooks);
+    result.onAbort(() -> cancelStage(upstream));
     upstream.whenComplete(
         (value, error) -> {
           if (error != null) {
             result.completeExceptionally(RetryLoop.unwrap(error));
-            return;
-          }
-          try {
-            result.complete(fn.apply(value));
-          } catch (Throwable t) {
-            result.completeExceptionally(t);
+          } else if (result.isDone()) {
+            discard(value);
+          } else {
+            deliver(result, value, fn);
           }
         });
     return result;
@@ -47,14 +54,18 @@ public final class Futures {
    * @param <R> result type
    * @return a future of the second stage's value; cancelling it cancels the stage in flight
    */
-  public static <T, R> CompletableFuture<R> compose(
+  public <T, R> CallFuture<R> compose(
       CompletableFuture<T> upstream, Function<? super T, CompletableFuture<R>> fn) {
-    CompletableFuture<R> result = new CompletableFuture<>();
-    cancelWith(result, upstream);
+    CallFuture<R> result = new CallFuture<>(hooks);
+    result.onAbort(() -> cancelStage(upstream));
     upstream.whenComplete(
         (value, error) -> {
           if (error != null) {
             result.completeExceptionally(RetryLoop.unwrap(error));
+            return;
+          }
+          if (result.isDone()) {
+            discard(value);
             return;
           }
           CompletableFuture<R> next;
@@ -64,25 +75,50 @@ public final class Futures {
             result.completeExceptionally(t);
             return;
           }
-          cancelWith(result, next);
+          result.onAbort(() -> cancelStage(next));
           next.whenComplete(
               (second, secondError) -> {
                 if (secondError != null) {
                   result.completeExceptionally(RetryLoop.unwrap(secondError));
-                } else {
-                  result.complete(second);
+                } else if (!result.complete(second)) {
+                  discard(second);
                 }
               });
         });
     return result;
   }
 
-  private static void cancelWith(CompletableFuture<?> result, CompletableFuture<?> stage) {
-    result.whenComplete(
-        (value, error) -> {
-          if (result.isCancelled()) {
-            stage.cancel(true);
-          }
-        });
+  private static <T, R> void deliver(
+      CallFuture<R> result, T value, Function<? super T, ? extends R> fn) {
+    R mapped;
+    try {
+      mapped = fn.apply(value);
+    } catch (Throwable t) {
+      result.completeExceptionally(t);
+      return;
+    }
+    if (!result.complete(mapped)) {
+      discard(mapped);
+    }
+  }
+
+  /** Cancel a stage of an aborted call; a nested call's own future does not report it again. */
+  private static void cancelStage(CompletableFuture<?> stage) {
+    if (stage instanceof CallFuture<?> call) {
+      call.abortQuietly();
+    } else {
+      stage.cancel(true);
+    }
+  }
+
+  /** Close a value nobody will read, such as a PDF stream that arrived after a cancel. */
+  static void discard(@Nullable Object value) {
+    if (value instanceof AutoCloseable closeable) {
+      try {
+        closeable.close();
+      } catch (Exception ignored) {
+        // nobody reads it
+      }
+    }
   }
 }

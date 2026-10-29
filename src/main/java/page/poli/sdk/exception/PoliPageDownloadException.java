@@ -11,6 +11,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PoliPageDownloadException extends PoliPageException {
 
+  private static final long serialVersionUID = 1L;
+
   /**
    * @param code the SDK-internal code; typically {@code "download_failed"}
    * @param statusCode the S3 status code, or {@code 0} for transport failures

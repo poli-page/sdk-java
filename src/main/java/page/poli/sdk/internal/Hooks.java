@@ -36,7 +36,12 @@ public record Hooks(
     fire(onRetry, event);
   }
 
-  void error(Throwable error) {
+  /**
+   * Fire {@code onError}.
+   *
+   * @param error the error a call is about to end with
+   */
+  public void error(Throwable error) {
     fire(onError, error);
   }
 

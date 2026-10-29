@@ -17,6 +17,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PoliPageRateLimitException extends PoliPageException {
 
+  private static final long serialVersionUID = 1L;
+
   private final @Nullable Duration retryAfter;
 
   /**

@@ -7,7 +7,7 @@ import java.util.function.DoubleSupplier;
 /**
  * Pure exponential-backoff calculator with injectable jitter.
  *
- * <p>Formula per {@code sdk-java-plan.md} §5:
+ * <p>Formula (SDK specification §9.2):
  *
  * <pre>{@code delay = baseDelay × 2^attempt × jitter, where jitter ∈ [0.5, 1.5)}</pre>
  *

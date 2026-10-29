@@ -47,6 +47,8 @@ public sealed class PoliPageException extends RuntimeException
         PoliPageRateLimitException,
         PoliPageValidationException {
 
+  private static final long serialVersionUID = 1L;
+
   private final String code;
   private final int statusCode;
   private final @Nullable String requestId;

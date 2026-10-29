@@ -12,6 +12,8 @@ import page.poli.sdk.PoliPageErrorCode;
  */
 public final class PoliPageNetworkException extends PoliPageException {
 
+  private static final long serialVersionUID = 1L;
+
   /**
    * @param code one of {@code "network_error"} or {@code "timeout"}
    * @param message human-readable message

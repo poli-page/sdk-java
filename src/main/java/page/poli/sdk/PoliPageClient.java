@@ -21,7 +21,6 @@ import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.internal.Backoff;
 import page.poli.sdk.internal.Download;
-import page.poli.sdk.internal.Futures;
 import page.poli.sdk.internal.Hooks;
 import page.poli.sdk.internal.HttpTransport;
 import page.poli.sdk.internal.RetryLoop;
@@ -55,6 +54,7 @@ public final class PoliPageClient {
   private static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofSeconds(60);
 
   private final PoliPageClientOptions options;
+  private final Calls calls;
   private final Render render;
   private final Documents documents;
   private final RenderAsync renderAsync;
@@ -62,6 +62,7 @@ public final class PoliPageClient {
 
   private PoliPageClient(PoliPageClientOptions options, Calls calls) {
     this.options = options;
+    this.calls = calls;
     this.render = new Render(calls);
     this.documents = new Documents(calls);
     this.renderAsync = new RenderAsync(calls);
@@ -137,8 +138,9 @@ public final class PoliPageClient {
     try (InputStream stream = render.pdfStream(input)) {
       Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
     } catch (IOException e) {
-      throw new PoliPageException(
-          "io_error", 0, "Failed to write PDF to " + path + ": " + e.getMessage(), null, e);
+      throw calls.failed(
+          new PoliPageException(
+              "io_error", 0, "Failed to write PDF to " + path + ": " + e.getMessage(), null, e));
     }
   }
 
@@ -151,17 +153,24 @@ public final class PoliPageClient {
    *     failure, with the cause wrapped in {@code CompletionException} per JDK convention)
    */
   public CompletableFuture<Void> renderToFileAsync(RenderInput input, Path path) {
-    return Futures.map(
-        renderAsync.pdfStream(input),
-        stream -> {
-          try (InputStream s = stream) {
-            Files.copy(s, path, StandardCopyOption.REPLACE_EXISTING);
-          } catch (IOException e) {
-            throw new PoliPageException(
-                "io_error", 0, "Failed to write PDF to " + path + ": " + e.getMessage(), null, e);
-          }
-          return null;
-        });
+    return calls
+        .futures()
+        .map(
+            renderAsync.pdfStream(input),
+            stream -> {
+              try (InputStream s = stream) {
+                Files.copy(s, path, StandardCopyOption.REPLACE_EXISTING);
+              } catch (IOException e) {
+                throw calls.failed(
+                    new PoliPageException(
+                        "io_error",
+                        0,
+                        "Failed to write PDF to " + path + ": " + e.getMessage(),
+                        null,
+                        e));
+              }
+              return null;
+            });
   }
 
   /** Package-private accessor used by tests to assert defaults. Not part of the public API. */
@@ -170,8 +179,16 @@ public final class PoliPageClient {
   }
 
   /**
-   * Internal factory for the SDK's Jackson ObjectMapper. Configured per {@code sdk-java-plan.md}
-   * §4: lenient on unknown wire fields, omit nulls on the way out.
+   * The JDK HTTP client. No connect timeout of its own: {@code requestTimeout} bounds each attempt
+   * as a whole, the connect included, so a timeout always reports the bound that fired.
+   */
+  static HttpClient newHttpClient() {
+    return HttpClient.newBuilder().build();
+  }
+
+  /**
+   * Internal factory for the SDK's Jackson ObjectMapper: lenient on unknown wire fields, omit nulls
+   * on the way out.
    */
   private static ObjectMapper newObjectMapper() {
     return JsonMapper.builder()
@@ -321,10 +338,10 @@ public final class PoliPageClient {
     }
 
     /**
-     * Registers a callback fired once with each error a call is about to throw: an API error (after
-     * the retries, when it is retried), {@code network_error}, {@code timeout}, {@code aborted} on
-     * an interrupted blocking call, and {@code DOWNLOAD_FAILED}. A cancelled async future completes
-     * with the JDK's {@code CancellationException} and does not fire it.
+     * Registers a callback fired once with each error a call ends with: an API error (after the
+     * retries, when it is retried), {@code network_error}, {@code timeout}, {@code aborted} (an
+     * interrupted blocking call or a cancelled async future), {@code DOWNLOAD_FAILED}, {@code
+     * invalid_response}, {@code io_error}, and any other exception the call throws.
      *
      * <p>The hook is invoked synchronously. A hook that throws is caught and swallowed.
      *
@@ -384,7 +401,7 @@ public final class PoliPageClient {
               onError,
               onRequest,
               onResponse);
-      HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+      HttpClient http = newHttpClient();
       ObjectMapper mapper = newObjectMapper();
       Hooks hooks = new Hooks(opts.onRequest(), opts.onResponse(), opts.onRetry(), opts.onError());
       Transport transport =
@@ -399,7 +416,7 @@ public final class PoliPageClient {
               mapper,
               hooks);
       Download download = new Download(transport, opts.requestTimeout(), hooks);
-      return new PoliPageClient(opts, new Calls(transport, mapper, retry, download));
+      return new PoliPageClient(opts, new Calls(transport, mapper, retry, download, hooks));
     }
   }
 }

@@ -16,6 +16,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 import page.poli.sdk.PoliPageErrorCode;
 import page.poli.sdk.exception.PoliPageDownloadException;
@@ -87,7 +88,7 @@ public final class Download {
    * @return a future of the PDF bytes
    */
   public CompletableFuture<byte[]> bytesAsync(String url) {
-    return awaitAsync(start(url, BodyHandlers.ofByteArray()));
+    return awaitAsync(start(url, BodyHandlers.ofByteArray()), bytes -> bytes);
   }
 
   /**
@@ -97,7 +98,7 @@ public final class Download {
    * @return a future of the PDF body
    */
   public CompletableFuture<InputStream> streamAsync(String url) {
-    return awaitAsync(start(url, BodyHandlers.ofInputStream())).thenApply(DownloadStream::new);
+    return awaitAsync(start(url, BodyHandlers.ofInputStream()), DownloadStream::new);
   }
 
   // -- internals -----------------------------------------------------
@@ -139,8 +140,12 @@ public final class Download {
     return checked(response);
   }
 
-  private <T> CompletableFuture<T> awaitAsync(Started<T> started) {
-    CompletableFuture<T> result = new CompletableFuture<>();
+  /**
+   * One future for the whole download, body included: cancelling it cancels the exchange, and a
+   * body that arrives after the cancel is closed.
+   */
+  private <T, R> CompletableFuture<R> awaitAsync(Started<T> started, Function<T, R> body) {
+    CompletableFuture<R> result = new CompletableFuture<>();
     CompletableFuture<HttpResponse<T>> exchange = started.exchange();
     if (exchange == null) {
       result.completeExceptionally(fail(networkFailure(started.invalid())));
@@ -166,11 +171,17 @@ public final class Download {
         (response, error) -> {
           timer.cancel(false);
           if (result.isDone()) {
+            if (response != null) {
+              Futures.discard(response.body());
+            }
             return;
           }
           try {
             if (error == null) {
-              result.complete(checked(response));
+              R value = body.apply(checked(response));
+              if (!result.complete(value)) {
+                Futures.discard(value);
+              }
             } else if (timedOut.get()) {
               result.completeExceptionally(
                   fail(failure(started.capture().info(), new TimeoutException("download"))));

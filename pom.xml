@@ -380,6 +380,10 @@
                   <include>page.poli.sdk.model</include>
                   <include>page.poli.sdk.exception</include>
                 </includes>
+                <!-- Not exported by module-info: free to change in any release. -->
+                <excludes>
+                  <exclude>page.poli.sdk.internal</exclude>
+                </excludes>
               </parameter>
             </configuration>
             <executions>

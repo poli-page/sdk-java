@@ -398,6 +398,13 @@ class RetryLoopTest {
 
       assertThatThrownBy(() -> newLoop(2).execute(call, "GET", URL)).isSameAs(bug);
       assertThat(call.sent).isEqualTo(1);
+      assertThat(errors).containsExactly(bug);
+
+      FakeAttempt async = new FakeAttempt().fail(bug);
+      assertThatThrownBy(() -> newLoop(2).executeAsync(async, "GET", URL).join())
+          .cause()
+          .isSameAs(bug);
+      assertThat(errors).containsExactly(bug, bug);
     }
   }
 

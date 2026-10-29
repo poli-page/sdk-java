@@ -4,7 +4,6 @@ import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import page.poli.sdk.input.RenderInput;
-import page.poli.sdk.internal.Futures;
 import page.poli.sdk.model.DocumentDescriptor;
 
 /**
@@ -18,9 +17,11 @@ import page.poli.sdk.model.DocumentDescriptor;
  * <p>Internally uses {@code HttpClient.sendAsync(...)} so no worker thread is blocked while waiting
  * on the network, nor between attempts.
  *
- * <p>Cancelling the returned future ({@code cancel(true)}) cancels the attempt in flight, the retry
- * wait or the download, and no further request is sent. The future then completes with the JDK's
- * {@code CancellationException}, as every cancelled {@code CompletableFuture} does.
+ * <p>Cancelling the returned future ({@code cancel(true)}) aborts the call: the attempt in flight,
+ * the retry wait or the download is cancelled, and no further request is sent. {@code get()} and
+ * {@code join()} then throw a {@code CancellationException} whose {@code getCause()} is the SDK's
+ * {@code aborted} {@link page.poli.sdk.exception.PoliPageException} ({@code Request was aborted}),
+ * and {@code onError} fires once with it.
  */
 public final class RenderAsync {
 
@@ -39,7 +40,9 @@ public final class RenderAsync {
    * @return a future of PDF bytes
    */
   public CompletableFuture<byte[]> pdf(RenderInput input) {
-    return Futures.compose(document(input), d -> calls.download().bytesAsync(d.presignedPdfUrl()));
+    return calls
+        .futures()
+        .compose(document(input), d -> calls.download().bytesAsync(d.presignedPdfUrl()));
   }
 
   /**
@@ -51,7 +54,9 @@ public final class RenderAsync {
    * @return a future of the streaming body
    */
   public CompletableFuture<InputStream> pdfStream(RenderInput input) {
-    return Futures.compose(document(input), d -> calls.download().streamAsync(d.presignedPdfUrl()));
+    return calls
+        .futures()
+        .compose(document(input), d -> calls.download().streamAsync(d.presignedPdfUrl()));
   }
 
   /**
@@ -61,8 +66,10 @@ public final class RenderAsync {
    * @return a future of the parsed descriptor
    */
   public CompletableFuture<DocumentDescriptor> document(RenderInput input) {
-    return Futures.map(
-        calls.postAsync(RENDER_PATH, input, input.idempotencyKey()),
-        response -> calls.json(response, RENDER_PATH, DocumentDescriptor.class));
+    return calls
+        .futures()
+        .map(
+            calls.postAsync(RENDER_PATH, input, input.idempotencyKey()),
+            response -> calls.json(response, RENDER_PATH, DocumentDescriptor.class));
   }
 }

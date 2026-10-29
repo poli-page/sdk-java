@@ -22,22 +22,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  * back, and a resent download would break the rule that the presigned-URL download is never
  * retried.
  *
- * <p>Each exchange the JDK opens for a request asks the body for its length once, when it writes
- * the request headers ({@code Http1Request}, {@code Stream} for HTTP/2, {@code Http3ExchangeImpl}):
- * a second such call is a resend, refused before anything is written. The refusal fails the attempt
- * with an {@link IOException}, which the SDK maps to {@code network_error} and retries itself.
- * Calls from outside the JDK's HTTP implementation are not counted, so the guard can only fall back
- * to the JDK's own behaviour, never refuse a first send.
+ * <p>Each exchange the JDK opens for a request asks the body for its length once, before it writes
+ * any byte: {@code Http1Request.headers()}, {@code Stream.sendHeadersAsync()} for HTTP/2, {@code
+ * Http3ExchangeImpl} (JDK 21 and 26 sources). Every JDK retry opens a new exchange and asks again:
+ * the HTTP/1.1 dead-connection resend, the HTTP/2 retry of a stream the server refused (GOAWAY,
+ * {@code REFUSED_STREAM}), and the retries of {@code jdk.httpclient.redirects.retrylimit}. Nothing
+ * else calls this method, so a second call is a resend, refused before anything is written. The
+ * refusal fails the attempt with an {@link IOException}, which the SDK maps to {@code
+ * network_error} and retries itself. On HTTP/1.1 the JDK closes the connection when the headers
+ * cannot be built, so a refused resend leaks nothing.
  *
  * <p>A {@code GET} or {@code DELETE} gets an empty body with this guard. Up to JDK 21 that sends a
  * {@code Content-Length: 0} header, as {@code HttpRequest.Builder.GET()} itself did up to JDK 18.
  */
 final class SingleExchangeBody implements BodyPublisher {
-
-  /** Package of the JDK's HTTP client implementation, whose exchanges ask for the length. */
-  private static final String JDK_HTTP_IMPLEMENTATION = "jdk.internal.net.http.";
-
-  private static final StackWalker STACK = StackWalker.getInstance();
 
   private final BodyPublisher body;
   private final AtomicInteger exchanges = new AtomicInteger();
@@ -63,7 +61,7 @@ final class SingleExchangeBody implements BodyPublisher {
 
   @Override
   public long contentLength() {
-    if (askedByAnExchange() && exchanges.getAndIncrement() > 0) {
+    if (exchanges.getAndIncrement() > 0) {
       throw new ResendRefusedException();
     }
     return body.contentLength();
@@ -72,17 +70,6 @@ final class SingleExchangeBody implements BodyPublisher {
   @Override
   public void subscribe(Flow.Subscriber<? super ByteBuffer> subscriber) {
     body.subscribe(subscriber);
-  }
-
-  private static boolean askedByAnExchange() {
-    // Frame 0 is this method, frame 1 contentLength(), frame 2 its caller.
-    return STACK.walk(
-        frames ->
-            frames
-                .skip(2)
-                .findFirst()
-                .map(frame -> frame.getClassName().startsWith(JDK_HTTP_IMPLEMENTATION))
-                .orElse(false));
   }
 
   /** The JDK client tried to send a request a second time; the attempt fails instead. */
