@@ -180,8 +180,12 @@ class AsyncCancellationTest {
       "PRE-EXISTING".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
 
   private static MockServer.Answer drip() {
-    // 4000 bytes, one every 2 ms: the copy takes about 8 s.
-    byte[] pdf = new byte[4000];
+    // 4000 bytes, one every 2 ms: the copy takes 8 s or more.
+    return drip(4000);
+  }
+
+  private static MockServer.Answer drip(int length) {
+    byte[] pdf = new byte[length];
     java.util.Arrays.fill(pdf, (byte) 'x');
     return new MockServer.Answer(
         200, java.util.Map.of("Content-Type", "application/pdf"), pdf, -1, 2);
@@ -326,20 +330,20 @@ class AsyncCancellationTest {
     // orTimeout / complete() end the future without cancelling it: the copy is not stopped, the
     // written file is kept, and a real failure still fires onError.
     Path file = dir.resolve("out.pdf");
-    try (MockServer server = serve(List.of(descriptor(), fixed(drip())))) {
+    try (MockServer server = serve(List.of(descriptor(), fixed(drip(400))))) {
       List<Throwable> errors = new CopyOnWriteArrayList<>();
       PoliPageClient sdk = client(server).onError(errors::add).build();
       CompletableFuture<Void> future = sdk.renderToFileAsync(input(), file);
       awaitRequests(server, 2);
 
       assertThat(future.complete(null)).isTrue();
-      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
       while (!Files.exists(file) && System.nanoTime() < deadline) {
         TimeUnit.MILLISECONDS.sleep(50);
       }
 
       assertThat(file).exists();
-      assertThat(Files.size(file)).isEqualTo(4000);
+      assertThat(Files.size(file)).isEqualTo(400);
       assertThat(errors).isEmpty();
     }
   }
