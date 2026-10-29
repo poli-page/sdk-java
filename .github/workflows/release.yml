@@ -82,7 +82,16 @@ jobs:
           esac
 
       - run: ./mvnw -B spotless:check
-      - run: ./mvnw -B verify
+
+      # The tagged commit's tests run the API contract too.
+      - name: API contract
+        id: contract
+        uses: poli-page/api-contract@0eba96c1ecf9a28b7e259f444f3ca5b7c059d5fd # v1.3.0
+
+      - name: Test + verify
+        env:
+          POLI_CONTRACT: ${{ steps.contract.outputs.path }}
+        run: ./mvnw -B verify
 
       # Proves the sources and javadoc jars build (doclint, failOnError) and
       # runs japicmp, without needing the signing key.

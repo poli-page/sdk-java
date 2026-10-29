@@ -74,6 +74,8 @@ class DocumentsDownloadPdfTest {
                     .downloadPdf(descriptorWithUrl(wm.getHttpBaseUrl() + PRESIGNED_PATH)))
         .isInstanceOf(PoliPageDownloadException.class)
         .matches(t -> ((PoliPageDownloadException) t).statusCode() == 403)
-        .matches(t -> ((PoliPageDownloadException) t).code().equals("download_failed"));
+        .matches(t -> ((PoliPageDownloadException) t).code().equals("DOWNLOAD_FAILED"))
+        .hasMessage("Failed to download PDF: HTTP 403")
+        .matches(t -> !((PoliPageDownloadException) t).isRetryable());
   }
 }

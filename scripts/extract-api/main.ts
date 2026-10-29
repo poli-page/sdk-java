@@ -66,19 +66,17 @@ const SERVER_ERRORS = ['STORAGE_ACCESS_DENIED', 'INTERNAL_ERROR', 'unknown_error
 // only. MISSING_DATA, MISSING_TEMPLATE_SLUG, PROJECT_REQUIRED_FOR_DOCUMENT and
 // ENVIRONMENT_MISMATCH are left out: RenderInput always sends a non-blank
 // project and template and a data object, and never an environment.
-// TEMPLATE_UNSAFE (400) is not one of the SDK's known codes; it reaches the
-// caller unchanged like any unknown code.
 const RENDER_DOCUMENT_ERRORS = [
   ...AUTH_ERRORS, ...WRITE_GATE_ERRORS,
   'RATE_LIMIT_EXCEEDED', 'VALIDATION_ERROR', 'RENDER_BODY_TOO_LARGE',
   'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND',
-  'TEMPLATE_ERROR', 'EMPTY_DOCUMENT', 'DOCUMENT_TOO_LARGE', 'RENDER_TIMEOUT',
+  'TEMPLATE_ERROR', 'TEMPLATE_UNSAFE', 'EMPTY_DOCUMENT', 'DOCUMENT_TOO_LARGE', 'RENDER_TIMEOUT',
   'QUOTA_EXCEEDED', 'OVERAGE_CAP_EXCEEDED', 'PUBLISH_IN_PROGRESS',
   ...SERVER_ERRORS, 'invalid_response',
 ];
-// The render, then the presigned-URL download (its transport failures are the
-// timeout / network_error / aborted already listed).
-const RENDER_PDF_ERRORS = [...RENDER_DOCUMENT_ERRORS, 'download_failed'];
+// The render, then the presigned-URL download: DOWNLOAD_FAILED for a non-2xx
+// answer, no answer or a body cut mid-way; aborted is already listed.
+const RENDER_PDF_ERRORS = [...RENDER_DOCUMENT_ERRORS, 'DOWNLOAD_FAILED'];
 // GET /v1/documents/:id and /preview: reads, so no write gate and no rate limiter.
 const DOCUMENT_READ_ERRORS = [...AUTH_ERRORS, 'DOCUMENT_NOT_FOUND', 'FORBIDDEN', 'DOCUMENT_GONE', ...SERVER_ERRORS];
 
@@ -180,11 +178,11 @@ const METHODS: readonly Method[] = [
 ];
 
 const SDK_INTERNAL_ERRORS = [
-  { code: 'invalid_options', when: 'Builder validation failed (missing apiKey, non-absolute baseUrl, etc.). Thrown synchronously by PoliPageClient.Builder.build().' },
-  { code: 'network_error', when: 'TCP/TLS-layer failure reaching the API. Retryable.' },
-  { code: 'timeout', when: 'The request did not complete within the configured requestTimeout. Retryable.' },
-  { code: 'aborted', when: 'Caller interrupted a blocking call or cancelled the CompletableFuture. Not retryable.' },
-  { code: 'download_failed', when: 'Presigned PDF URL fetch returned non-2xx (typically expired URL).' },
+  { code: 'invalid_options', when: 'Builder validation failed (a missing or blank apiKey gives `apiKey is required`, a non-absolute baseUrl, etc.). Thrown synchronously by PoliPageClient.Builder.build().' },
+  { code: 'network_error', when: 'TCP/TLS-layer failure reaching the API, or a connection closed before or during the answer. Message `Network request failed`. Retryable.' },
+  { code: 'timeout', when: 'An attempt, body included, did not complete within the configured requestTimeout. Message `Request timed out after <ms>ms`. Retryable.' },
+  { code: 'aborted', when: 'Caller interrupted a blocking call or cancelled the CompletableFuture (whose CancellationException has this error as cause). Message `Request was aborted`. Not retryable.' },
+  { code: 'DOWNLOAD_FAILED', when: 'The presigned PDF URL download failed: `Failed to download PDF: HTTP <status>` with the storage status (typically 403 for an expired URL), or `Failed to download PDF: network error` with no status. Not retryable.' },
   { code: 'io_error', when: 'Local file write failed inside renderToFile.' },
   { code: 'invalid_response', when: 'The API returned a 2xx response whose body could not be parsed as the expected type.' },
   { code: 'unknown_error', when: 'The API returned an error body with neither a code nor an error field. The HTTP status is kept.' },
@@ -213,14 +211,15 @@ const API_ERRORS = [
   { code: 'ENVIRONMENT_MISMATCH', when: 'The request does not match the key\'s environment. HTTP 400.' },
   { code: 'EMPTY_DOCUMENT', when: 'The rendered document is empty. HTTP 400.' },
   { code: 'TEMPLATE_ERROR', when: 'The template could not be rendered. HTTP 400.' },
+  { code: 'TEMPLATE_UNSAFE', when: 'The template, a partial or an SVG asset holds an injection attempt; the message names it. HTTP 400. Not retryable.' },
   { code: 'RENDER_BODY_TOO_LARGE', when: 'The render request body is too large. HTTP 413.' },
   { code: 'DOCUMENT_TOO_LARGE', when: 'The rendered document is too large. HTTP 413.' },
-  { code: 'QUOTA_EXCEEDED', when: 'Monthly quota reached. HTTP 429. Retryable.' },
-  { code: 'OVERAGE_CAP_EXCEEDED', when: 'Hard overage cap reached. HTTP 429.' },
+  { code: 'QUOTA_EXCEEDED', when: 'Monthly quota reached. HTTP 429. Not retryable: it lasts until the monthly reset.' },
+  { code: 'OVERAGE_CAP_EXCEEDED', when: 'Hard overage cap reached. HTTP 429. Not retryable: it lasts until the monthly reset.' },
   { code: 'RATE_LIMIT_EXCEEDED', when: 'Request rate limit exceeded. HTTP 429. Retryable.' },
-  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx, or an error body that is not JSON. Retryable on 5xx.' },
+  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx, or an error body that is not JSON or broke off while read (the real status kept). Retryable on 5xx and 429.' },
   { code: 'PUBLISH_IN_PROGRESS', when: 'A publish locks the project in the key\'s environment. HTTP 503 with Retry-After. Retryable.' },
-  { code: 'STORAGE_ACCESS_DENIED', when: 'Storage access was denied. HTTP 502. Retryable.' },
+  { code: 'STORAGE_ACCESS_DENIED', when: 'Storage access was denied. HTTP 502. Not retryable: it lasts until the bucket access is restored.' },
   { code: 'RENDER_TIMEOUT', when: 'The render did not finish in time. HTTP 504. Retryable.' },
 ];
 

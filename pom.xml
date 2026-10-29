@@ -149,6 +149,25 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven-surefire-plugin.version}</version>
+        <executions>
+          <!--
+            The JDK HTTP client resends any method by itself on a connection closed before an
+            answer when the JVM runs with this flag. Run the resend tests again with it on, to
+            prove the SDK still sends each POST once.
+          -->
+          <execution>
+            <id>no-hidden-resend-all-methods</id>
+            <goals>
+              <goal>test</goal>
+            </goals>
+            <configuration>
+              <test>NoHiddenResendTest</test>
+              <systemPropertyVariables>
+                <jdk.httpclient.enableAllMethodRetry>true</jdk.httpclient.enableAllMethodRetry>
+              </systemPropertyVariables>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
 
       <plugin>
@@ -361,6 +380,10 @@
                   <include>page.poli.sdk.model</include>
                   <include>page.poli.sdk.exception</include>
                 </includes>
+                <!-- Not exported by module-info: free to change in any release. -->
+                <excludes>
+                  <exclude>page.poli.sdk.internal</exclude>
+                </excludes>
               </parameter>
             </configuration>
             <executions>

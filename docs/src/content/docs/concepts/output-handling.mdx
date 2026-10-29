@@ -16,7 +16,7 @@ Best for documents that fit comfortably in process memory.
 
 ## Streaming (`render().pdfStream`)
 
-For large PDFs or piping straight to an HTTP response or object store, use `pdfStream` and let the SDK keep memory bounded. The returned `InputStream` owns the underlying HTTP connection — wrap it in `try-with-resources` or leak a connection slot.
+For large PDFs or piping straight to an HTTP response or object store, use `pdfStream` and let the SDK keep memory bounded. The returned `InputStream` owns the underlying HTTP connection — wrap it in `try-with-resources` or leak a connection slot. `requestTimeout` bounds the wait for the download's headers; the body is then read at your pace, with no idle timeout, so a stalled storage connection blocks `read()` until it closes. A connection that drops mid-body throws `DOWNLOAD_FAILED` from `read()`.
 
 ```java
 try (InputStream stream = client.render().pdfStream(input)) {
@@ -26,7 +26,7 @@ try (InputStream stream = client.render().pdfStream(input)) {
 
 ## Write to file (`renderToFile`)
 
-`PoliPageClient.renderToFile(input, path)` streams bytes directly to disk with bounded memory. The destination is overwritten if it already exists.
+`PoliPageClient.renderToFile(input, path)` streams bytes to disk with bounded memory. The PDF goes to a temporary file next to the destination, which is then moved onto it (atomically where the file system can): a call that fails or is cancelled never leaves a partial file. The destination is either as it was or replaced by the complete PDF (a cancel that lands once the download is complete may still replace it).
 
 ```java
 client.renderToFile(input, Path.of("./invoices/INV-001.pdf"));

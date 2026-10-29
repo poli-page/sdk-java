@@ -1,22 +1,9 @@
 package page.poli.sdk;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpHeaders;
-import java.net.http.HttpResponse;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import org.jspecify.annotations.Nullable;
-import page.poli.sdk.exception.PoliPageDownloadException;
-import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.input.RenderInput;
-import page.poli.sdk.internal.ErrorParsing;
-import page.poli.sdk.internal.RetryLoop;
-import page.poli.sdk.internal.Transport;
-import page.poli.sdk.internal.Urls;
 import page.poli.sdk.model.DocumentDescriptor;
 
 /**
@@ -28,26 +15,22 @@ import page.poli.sdk.model.DocumentDescriptor;
  * .handle((res, err) -> { … })}.
  *
  * <p>Internally uses {@code HttpClient.sendAsync(...)} so no worker thread is blocked while waiting
- * on the network. The async retry loop uses {@link CompletableFuture#delayedExecutor} for back-off;
- * no thread sleeps between attempts.
+ * on the network, nor between attempts.
  *
- * <p>Cancelling the returned future via {@code cancel(true)} marks the future cancelled per JDK
- * semantics; the in-flight HTTP exchange is best-effort aborted (see plan §7.2).
+ * <p>Cancelling the returned future ({@code cancel(true)}) aborts the call: the attempt in flight,
+ * the retry wait or the download is cancelled, and no further request is sent. {@code get()} and
+ * {@code join()} then throw a {@code CancellationException} whose {@code getCause()} is the SDK's
+ * {@code aborted} {@link page.poli.sdk.exception.PoliPageException} ({@code Request was aborted}),
+ * and {@code onError} fires once with it.
  */
 public final class RenderAsync {
 
   private static final String RENDER_PATH = "/v1/render";
-  private static final String REQUEST_ID_HEADER = "x-request-id";
-  private static final String RETRY_AFTER_HEADER = "retry-after";
 
-  private final Transport transport;
-  private final ObjectMapper mapper;
-  private final RetryLoop retry;
+  private final Calls calls;
 
-  RenderAsync(Transport transport, ObjectMapper mapper, RetryLoop retry) {
-    this.transport = transport;
-    this.mapper = mapper;
-    this.retry = retry;
+  RenderAsync(Calls calls) {
+    this.calls = calls;
   }
 
   /**
@@ -57,19 +40,9 @@ public final class RenderAsync {
    * @return a future of PDF bytes
    */
   public CompletableFuture<byte[]> pdf(RenderInput input) {
-    return document(input)
-        .thenCompose(d -> transport.getPresignedAsync(URI.create(d.presignedPdfUrl())))
-        .thenApply(
-            response -> {
-              if (!isSuccess(response.statusCode())) {
-                throw new PoliPageDownloadException(
-                    PoliPageErrorCode.DOWNLOAD_FAILED,
-                    response.statusCode(),
-                    "Failed to download PDF from presigned URL: HTTP " + response.statusCode(),
-                    null);
-              }
-              return response.body();
-            });
+    return calls
+        .futures()
+        .compose(document(input), d -> calls.download().bytesAsync(d.presignedPdfUrl()));
   }
 
   /**
@@ -81,24 +54,9 @@ public final class RenderAsync {
    * @return a future of the streaming body
    */
   public CompletableFuture<InputStream> pdfStream(RenderInput input) {
-    return document(input)
-        .thenCompose(d -> transport.getPresignedStreamAsync(URI.create(d.presignedPdfUrl())))
-        .thenApply(
-            response -> {
-              if (!isSuccess(response.statusCode())) {
-                try {
-                  response.body().close();
-                } catch (IOException ignored) {
-                  // already failing
-                }
-                throw new PoliPageDownloadException(
-                    PoliPageErrorCode.DOWNLOAD_FAILED,
-                    response.statusCode(),
-                    "Failed to download PDF from presigned URL: HTTP " + response.statusCode(),
-                    null);
-              }
-              return response.body();
-            });
+    return calls
+        .futures()
+        .compose(document(input), d -> calls.download().streamAsync(d.presignedPdfUrl()));
   }
 
   /**
@@ -108,52 +66,10 @@ public final class RenderAsync {
    * @return a future of the parsed descriptor
    */
   public CompletableFuture<DocumentDescriptor> document(RenderInput input) {
-    return postAndParseAsync(RENDER_PATH, input, DocumentDescriptor.class);
-  }
-
-  // -- internals -----------------------------------------------------
-
-  private <T> CompletableFuture<T> postAndParseAsync(String path, RenderInput body, Class<T> type) {
-    String idempotencyKey = idempotencyKeyOf(body);
-    URI fullUrl = Urls.join(transport.baseUrl(), path);
-    return retry
-        .executeAsync(
-            () -> transport.postAsync(path, body, idempotencyKey), "POST " + path, "POST", fullUrl)
-        .thenApply(response -> mapResponse(response, path, type));
-  }
-
-  private static String idempotencyKeyOf(RenderInput body) {
-    String key = body.idempotencyKey();
-    return key != null ? key : UUID.randomUUID().toString();
-  }
-
-  private <T> T mapResponse(HttpResponse<byte[]> response, String path, Class<T> type) {
-    if (!isSuccess(response.statusCode())) {
-      throw ErrorParsing.toException(
-          response.statusCode(),
-          response.body(),
-          header(response, REQUEST_ID_HEADER),
-          header(response, RETRY_AFTER_HEADER),
-          mapper);
-    }
-    try {
-      return mapper.readValue(response.body(), type);
-    } catch (IOException e) {
-      throw new PoliPageException(
-          "invalid_response",
-          response.statusCode(),
-          "Failed to parse " + path + " response as " + type.getSimpleName(),
-          header(response, REQUEST_ID_HEADER),
-          e);
-    }
-  }
-
-  private static boolean isSuccess(int statusCode) {
-    return statusCode >= 200 && statusCode < 300;
-  }
-
-  private static @Nullable String header(HttpResponse<?> response, String name) {
-    HttpHeaders headers = response.headers();
-    return headers.firstValue(name).orElse(null);
+    return calls
+        .futures()
+        .map(
+            calls.postAsync(RENDER_PATH, input, input.idempotencyKey()),
+            response -> calls.json(response, RENDER_PATH, DocumentDescriptor.class));
   }
 }

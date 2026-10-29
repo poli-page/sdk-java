@@ -10,6 +10,8 @@ import page.poli.sdk.PoliPageErrorCode;
  */
 public final class PoliPageInvalidOptionsException extends PoliPageException {
 
+  private static final long serialVersionUID = 1L;
+
   /**
    * @param message human-readable explanation of which option was missing or invalid
    */

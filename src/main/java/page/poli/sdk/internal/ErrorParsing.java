@@ -54,27 +54,63 @@ public final class ErrorParsing {
     Parsed parsed = parseBody(body, mapper);
     String code = parsed.code != null ? parsed.code : UNKNOWN_ERROR;
     String message = parsed.message != null ? parsed.message : ("HTTP " + statusCode);
+    return build(code, statusCode, message, requestId, retryAfterHeader, null);
+  }
 
+  /**
+   * Map an error answer whose body failed while it was read (a dropped connection, the attempt
+   * timeout): a malformed error body, like one that is not JSON (SDK spec §8.2). The code is {@code
+   * INTERNAL_ERROR} and the message {@code HTTP <status>}, never taken from the bytes received so
+   * far; the real status and request id are kept, so the status decides the retry.
+   *
+   * @param statusCode the HTTP status of the answer
+   * @param requestId value of the {@code x-request-id} header, or {@code null}
+   * @param retryAfterHeader value of the {@code Retry-After} header, or {@code null}
+   * @param cause the read failure
+   * @return the exception for the status
+   */
+  public static PoliPageException malformedBody(
+      int statusCode,
+      @Nullable String requestId,
+      @Nullable String retryAfterHeader,
+      Throwable cause) {
+    return build(
+        PoliPageErrorCode.INTERNAL_ERROR,
+        statusCode,
+        "HTTP " + statusCode,
+        requestId,
+        retryAfterHeader,
+        cause);
+  }
+
+  private static PoliPageException build(
+      String code,
+      int statusCode,
+      String message,
+      @Nullable String requestId,
+      @Nullable String retryAfterHeader,
+      @Nullable Throwable cause) {
     return switch (statusCode) {
-      case 400, 422 -> new PoliPageValidationException(code, statusCode, message, requestId);
-      case 401, 403 -> new PoliPageAuthException(code, statusCode, message, requestId);
-      case 404 -> new PoliPageNotFoundException(code, statusCode, message, requestId);
-      case 410 -> new PoliPageGoneException(code, statusCode, message, requestId);
+      case 400, 422 -> new PoliPageValidationException(code, statusCode, message, requestId, cause);
+      case 401, 403 -> new PoliPageAuthException(code, statusCode, message, requestId, cause);
+      case 404 -> new PoliPageNotFoundException(code, statusCode, message, requestId, cause);
+      case 410 -> new PoliPageGoneException(code, statusCode, message, requestId, cause);
       case 429 ->
           new PoliPageRateLimitException(
-              code, statusCode, message, requestId, parseRetryAfter(retryAfterHeader));
-      default -> new PoliPageException(code, statusCode, message, requestId, null);
+              code, statusCode, message, requestId, parseRetryAfter(retryAfterHeader), cause);
+      default -> new PoliPageException(code, statusCode, message, requestId, cause);
     };
   }
 
   /**
-   * Parse the {@code Retry-After} header value. Accepts both forms defined by RFC 7231 §7.1.3:
-   * delta-seconds (an integer) or HTTP-date.
+   * Parse the {@code Retry-After} header value: delta-seconds (digits only) or an HTTP-date (RFC
+   * 9110 §10.2.3).
    *
-   * <p>Returns {@code null} when the header is absent, blank, or unparseable. Past HTTP-dates
-   * collapse to {@link Duration#ZERO}. The retry loop is responsible for capping the result (the
-   * SDK uses a 30-second cap); this method returns the raw parsed value so the exception's {@code
-   * retryAfter()} accessor sees what the server said.
+   * <p>Returns {@code null} when the header is absent, blank, or in any other form ({@code "1.5"},
+   * {@code "-1"}, {@code "soon"}), so the retry loop falls back to its backoff. Past HTTP-dates
+   * collapse to {@link Duration#ZERO}; a number of seconds too large for a {@code long} saturates.
+   * The retry loop clamps the result to 30 seconds; this method returns the value the server sent
+   * so the exception's {@code retryAfter()} accessor reports it.
    *
    * @param headerValue raw header value, or {@code null}
    * @return the parsed duration, or {@code null} if unparseable / absent
@@ -87,17 +123,13 @@ public final class ErrorParsing {
     if (trimmed.isEmpty()) {
       return null;
     }
-    // Form 1: delta-seconds.
-    try {
-      long seconds = Long.parseLong(trimmed);
-      if (seconds < 0) {
-        return Duration.ZERO;
+    if (isDigits(trimmed)) {
+      try {
+        return Duration.ofSeconds(Long.parseLong(trimmed));
+      } catch (NumberFormatException tooLarge) {
+        return Duration.ofSeconds(Long.MAX_VALUE);
       }
-      return Duration.ofSeconds(seconds);
-    } catch (NumberFormatException ignored) {
-      // fall through to HTTP-date
     }
-    // Form 2: HTTP-date (RFC 1123).
     try {
       ZonedDateTime when = ZonedDateTime.parse(trimmed, DateTimeFormatter.RFC_1123_DATE_TIME);
       Duration delta = Duration.between(ZonedDateTime.now(ZoneOffset.UTC), when);
@@ -105,6 +137,16 @@ public final class ErrorParsing {
     } catch (DateTimeParseException ignored) {
       return null;
     }
+  }
+
+  private static boolean isDigits(String value) {
+    for (int i = 0; i < value.length(); i++) {
+      char c = value.charAt(i);
+      if (c < '0' || c > '9') {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static Parsed parseBody(@Nullable byte[] body, ObjectMapper mapper) {

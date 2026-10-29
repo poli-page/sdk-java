@@ -27,6 +27,23 @@ system-wide Maven install. CI fails on any format or test violation.
 
 Optional: Spotless can auto-format with `./mvnw spotless:apply`.
 
+## API contract tests
+
+`ContractTest` runs every SDK case of the Poli Page API contract
+([poli-page/api-contract](https://github.com/poli-page/api-contract)) against
+a local mock server, on the blocking and the async facade. CI runs it on every
+leg against the contract version pinned in `.github/workflows/ci.yml`, and
+Dependabot proposes each new version. Locally, download that version's
+`contract.json` and point `POLI_CONTRACT` at it:
+
+```bash
+POLI_CONTRACT=/path/to/contract.json ./mvnw test
+```
+
+Without `POLI_CONTRACT` the contract tests are skipped (and fail when `CI` is
+set). `src/test/resources/contract-skip.json` lists the case ids allowed to
+fail, each with its reason.
+
 ## Integration tests
 
 Integration tests hit the API. They live in a separate Maven profile

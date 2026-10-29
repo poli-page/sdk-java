@@ -1,25 +1,14 @@
 package page.poli.sdk;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
-import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
-import page.poli.sdk.exception.PoliPageNetworkException;
-import page.poli.sdk.internal.ErrorParsing;
-import page.poli.sdk.internal.RetryLoop;
-import page.poli.sdk.internal.Transport;
-import page.poli.sdk.internal.Urls;
 import page.poli.sdk.model.DocumentDescriptor;
 import page.poli.sdk.model.DocumentPreviewResult;
 import page.poli.sdk.model.Thumbnail;
@@ -36,25 +25,20 @@ import page.poli.sdk.model.ThumbnailOptions;
  *   <li>{@link #delete(String)} — soft-delete a stored document
  * </ul>
  *
- * <p>All four methods run through the SDK's {@link RetryLoop}. {@code delete} is idempotent: the
- * API answers {@code 204} for an already-deleted document too, so a re-delete returns normally. The
- * SDK retries on 5xx/429 like the other verbs.
+ * <p>All four methods run through the SDK's retry policy. {@code delete} is idempotent: the API
+ * answers {@code 204} for an already-deleted document too, so a re-delete returns normally. The SDK
+ * retries it like the other verbs. Interrupting the calling thread ends a call with {@code
+ * aborted}.
  */
 public final class Documents {
 
   private static final String DOCUMENTS_PATH = "/v1/documents/";
-  private static final String REQUEST_ID_HEADER = "x-request-id";
-  private static final String RETRY_AFTER_HEADER = "retry-after";
   private static final String PAGE_COUNT_HEADER = "X-Document-Page-Count";
 
-  private final Transport transport;
-  private final ObjectMapper mapper;
-  private final RetryLoop retry;
+  private final Calls calls;
 
-  Documents(Transport transport, ObjectMapper mapper, RetryLoop retry) {
-    this.transport = transport;
-    this.mapper = mapper;
-    this.retry = retry;
+  Documents(Calls calls) {
+    this.calls = calls;
   }
 
   /**
@@ -66,11 +50,7 @@ public final class Documents {
    */
   public DocumentDescriptor get(String id) {
     String path = DOCUMENTS_PATH + encode(id);
-    URI fullUrl = Urls.join(transport.baseUrl(), path);
-    HttpResponse<byte[]> response =
-        retry.execute(() -> transport.get(path), "GET " + path, "GET", fullUrl);
-    failIfNotSuccess(response, path);
-    return parseJson(response, path, DocumentDescriptor.class);
+    return calls.json(calls.send("GET", path), path, DocumentDescriptor.class);
   }
 
   /**
@@ -86,10 +66,7 @@ public final class Documents {
    */
   public DocumentPreviewResult preview(String id) {
     String path = DOCUMENTS_PATH + encode(id) + "/preview";
-    URI fullUrl = Urls.join(transport.baseUrl(), path);
-    HttpResponse<byte[]> response =
-        retry.execute(() -> transport.get(path), "GET " + path, "GET", fullUrl);
-    failIfNotSuccess(response, path);
+    HttpResponse<byte[]> response = calls.send("GET", path);
     String html = new String(response.body(), StandardCharsets.UTF_8);
     int pageCount = parsePageCount(header(response, PAGE_COUNT_HEADER));
     return new DocumentPreviewResult(html, pageCount);
@@ -122,16 +99,9 @@ public final class Documents {
    */
   public List<Thumbnail> thumbnails(String id, ThumbnailOptions options) {
     String path = DOCUMENTS_PATH + encode(id) + "/thumbnails";
-    Map<String, ThumbnailOptions> wireBody = thumbnailsWireBody(options);
-    String idempotencyKey =
-        options.idempotencyKey() != null ? options.idempotencyKey() : UUID.randomUUID().toString();
-    URI fullUrl = Urls.join(transport.baseUrl(), path);
     HttpResponse<byte[]> response =
-        retry.execute(
-            () -> transport.post(path, wireBody, idempotencyKey), "POST " + path, "POST", fullUrl);
-    failIfNotSuccess(response, path);
-    ThumbnailResponse wrap = parseJson(response, path, ThumbnailResponse.class);
-    return wrap.thumbnails();
+        calls.post(path, thumbnailsWireBody(options), options.idempotencyKey());
+    return calls.json(response, path, ThumbnailResponse.class).thumbnails();
   }
 
   /**
@@ -144,82 +114,33 @@ public final class Documents {
    * @throws PoliPageException on any non-2xx response after retries, or transport failure
    */
   public void delete(String id) {
-    String path = DOCUMENTS_PATH + encode(id);
-    URI fullUrl = Urls.join(transport.baseUrl(), path);
-    HttpResponse<byte[]> response =
-        retry.execute(() -> transport.delete(path), "DELETE " + path, "DELETE", fullUrl);
-    failIfNotSuccess(response, path);
-    // Response body intentionally ignored — spec §6.4.
+    calls.send("DELETE", path(id));
+    // Response body intentionally ignored — spec §7.5.
   }
 
   /**
    * Fetch the PDF bytes from a descriptor's {@code presignedPdfUrl}. The URL has a short TTL (~15
    * minutes); if it expired, re-fetch with {@link #get(String)} and try again.
    *
-   * <p>The presigned download is intentionally NOT retried — the URL is single-use against S3, and
-   * an expired-signature error won't recover.
+   * <p>The presigned download is never retried, and sends no {@code Authorization} header. A
+   * non-2xx answer raises {@code DOWNLOAD_FAILED} with the storage status ({@code 403} for an
+   * expired URL); a network failure or the client's timeout raise {@code DOWNLOAD_FAILED} without
+   * one.
    *
    * @param descriptor the descriptor returned by {@link #get(String)} or {@link
    *     page.poli.sdk.Render#document(page.poli.sdk.input.RenderInput)}
    * @return the PDF bytes
    * @throws PoliPageDownloadException on non-2xx or transport failure
+   * @throws PoliPageException {@code aborted} when the calling thread is interrupted
    */
   public byte[] downloadPdf(DocumentDescriptor descriptor) {
-    URI url = URI.create(descriptor.presignedPdfUrl());
-    HttpResponse<byte[]> response;
-    try {
-      response = transport.getPresigned(url);
-    } catch (HttpTimeoutException e) {
-      throw new PoliPageNetworkException(
-          PoliPageErrorCode.TIMEOUT, "downloadPdf timed out: " + e.getMessage(), e);
-    } catch (IOException e) {
-      throw new PoliPageDownloadException(
-          PoliPageErrorCode.DOWNLOAD_FAILED,
-          0,
-          "Failed to download PDF from presigned URL: " + e.getMessage(),
-          e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new PoliPageException(
-          PoliPageErrorCode.ABORTED, 0, "Download was interrupted", null, e);
-    }
-    int status = response.statusCode();
-    if (status < 200 || status >= 300) {
-      throw new PoliPageDownloadException(
-          PoliPageErrorCode.DOWNLOAD_FAILED,
-          status,
-          "Failed to download PDF from presigned URL: HTTP " + status,
-          null);
-    }
-    return response.body();
+    return calls.download().bytes(descriptor.presignedPdfUrl());
   }
 
   // -- internals -----------------------------------------------------
 
-  private void failIfNotSuccess(HttpResponse<byte[]> response, String path) {
-    int status = response.statusCode();
-    if (status >= 200 && status < 300) {
-      return;
-    }
-    throw ErrorParsing.toException(
-        status,
-        response.body(),
-        header(response, REQUEST_ID_HEADER),
-        header(response, RETRY_AFTER_HEADER),
-        mapper);
-  }
-
-  private <T> T parseJson(HttpResponse<byte[]> response, String path, Class<T> type) {
-    try {
-      return mapper.readValue(response.body(), type);
-    } catch (IOException e) {
-      throw new PoliPageException(
-          "invalid_response",
-          response.statusCode(),
-          "Failed to parse " + path + " response as " + type.getSimpleName(),
-          header(response, REQUEST_ID_HEADER),
-          e);
-    }
+  private static String path(String id) {
+    return DOCUMENTS_PATH + encode(id);
   }
 
   /**
@@ -244,8 +165,7 @@ public final class Documents {
   }
 
   private static @Nullable String header(HttpResponse<?> response, String name) {
-    HttpHeaders headers = response.headers();
-    return headers.firstValue(name).orElse(null);
+    return response.headers().firstValue(name).orElse(null);
   }
 
   /**

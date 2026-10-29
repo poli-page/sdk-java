@@ -9,6 +9,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PoliPageGoneException extends PoliPageException {
 
+  private static final long serialVersionUID = 1L;
+
   /**
    * @param code the wire code
    * @param statusCode {@code 410}
@@ -18,5 +20,22 @@ public final class PoliPageGoneException extends PoliPageException {
   public PoliPageGoneException(
       String code, int statusCode, String message, @Nullable String requestId) {
     super(code, statusCode, message, requestId, null);
+  }
+
+  /**
+   * @param code the wire code
+   * @param statusCode the HTTP status
+   * @param message human-readable message
+   * @param requestId the {@code x-request-id} response header, or {@code null}
+   * @param cause the underlying failure, e.g. the error while the answer's body was read, or {@code
+   *     null}
+   */
+  public PoliPageGoneException(
+      String code,
+      int statusCode,
+      String message,
+      @Nullable String requestId,
+      @Nullable Throwable cause) {
+    super(code, statusCode, message, requestId, cause);
   }
 }

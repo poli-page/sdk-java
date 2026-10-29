@@ -298,8 +298,17 @@ class ErrorParsingTest {
     }
 
     @Test
-    void negative_seconds_collapse_to_zero() {
-      assertThat(ErrorParsing.parseRetryAfter("-5")).isEqualTo(Duration.ZERO);
+    void a_negative_number_is_not_delta_seconds() {
+      // RFC 9110 §10.2.3: delta-seconds is 1*DIGIT. The retry loop falls back to its backoff.
+      assertThat(ErrorParsing.parseRetryAfter("-5")).isNull();
+      assertThat(ErrorParsing.parseRetryAfter("1.5")).isNull();
+      assertThat(ErrorParsing.parseRetryAfter("+5")).isNull();
+    }
+
+    @Test
+    void a_number_too_large_for_a_long_saturates() {
+      assertThat(ErrorParsing.parseRetryAfter("99999999999999999999999"))
+          .isEqualTo(Duration.ofSeconds(Long.MAX_VALUE));
     }
 
     @Test
@@ -362,8 +371,41 @@ class ErrorParsingTest {
     @Test
     void rate_limit_is_retryable() {
       PoliPageException ex =
-          ErrorParsing.toException(429, json("QUOTA_EXCEEDED", "x"), null, "1", MAPPER);
+          ErrorParsing.toException(429, json("RATE_LIMIT_EXCEEDED", "x"), null, "1", MAPPER);
       assertThat(ex.isRetryable()).isTrue();
+    }
+
+    @Test
+    void quota_overage_and_storage_access_are_not_retryable() {
+      assertThat(
+              ErrorParsing.toException(429, json("QUOTA_EXCEEDED", "x"), null, "1", MAPPER)
+                  .isRetryable())
+          .isFalse();
+      assertThat(
+              ErrorParsing.toException(429, json("OVERAGE_CAP_EXCEEDED", "x"), null, "1", MAPPER)
+                  .isRetryable())
+          .isFalse();
+      assertThat(
+              ErrorParsing.toException(502, json("STORAGE_ACCESS_DENIED", "x"), null, null, MAPPER)
+                  .isRetryable())
+          .isFalse();
+    }
+
+    @Test
+    void a_malformed_error_body_keeps_the_status_and_request_id() {
+      java.io.IOException cut = new java.io.IOException("cut");
+      PoliPageException ex = ErrorParsing.malformedBody(429, "req_1", "7", cut);
+      assertThat(ex).isInstanceOf(PoliPageRateLimitException.class);
+      assertThat(ex.code()).isEqualTo(PoliPageErrorCode.INTERNAL_ERROR);
+      assertThat(ex.getMessage()).isEqualTo("HTTP 429");
+      assertThat(ex.requestId()).isEqualTo("req_1");
+      assertThat(ex.getCause()).isSameAs(cut);
+      assertThat(((PoliPageRateLimitException) ex).retryAfter()).isEqualTo(Duration.ofSeconds(7));
+      for (int status : new int[] {400, 401, 404, 410, 503}) {
+        PoliPageException other = ErrorParsing.malformedBody(status, null, null, cut);
+        assertThat(other.statusCode()).isEqualTo(status);
+        assertThat(other.getCause()).isSameAs(cut);
+      }
     }
 
     @Test

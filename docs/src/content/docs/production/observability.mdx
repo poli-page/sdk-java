@@ -8,11 +8,11 @@ The SDK exposes four optional hooks on `PoliPageClient.Builder`: `onRequest`, `o
 ## The hooks
 
 - `onRequest(Consumer<RequestEvent>)` — fires before each API attempt, retries included. `event.method()`, `event.url()`, `event.attempt()`.
-- `onResponse(Consumer<ResponseEvent>)` — fires after each API response, whatever its status. `event.status()`, `event.requestId()`, `event.durationMs()`. Transport failures do not fire it.
-- `onRetry(Consumer<RetryEvent>)` — fires synchronously, just before the SDK sleeps between attempts. `event.attempt()`, `event.delay()`, `event.statusCode()`, `event.reason()` (`"5xx"` / `"rate_limit"` / `"timeout"` / `"network_error"`).
-- `onError(Consumer<Throwable>)` — fires when the retry loop is about to surface a terminal transport failure. Does **not** fire for wire-mapped exceptions (4xx) — those are not in scope of "retry exhausted".
+- `onResponse(Consumer<ResponseEvent>)` — fires after each 2xx API answer, once its body is read. `event.status()`, `event.requestId()`, `event.durationMs()` (body included). Error answers and transport failures do not fire it.
+- `onRetry(Consumer<RetryEvent>)` — fires just before the SDK waits between attempts. `event.attempt()` is the attempt about to start (`2` for the first retry), `event.delay()` the wait, `event.statusCode()`, `event.reason()` (`"5xx"` / `"rate_limit"` / `"timeout"` / `"network_error"`).
+- `onError(Consumer<Throwable>)` — fires once with each error a call ends with: an API error (after the retries, when it is retried), `network_error`, `timeout`, `aborted` (an interrupted blocking call or a cancelled async future), `DOWNLOAD_FAILED`, `invalid_response`, `io_error`, and any other exception the call throws.
 
-The four hooks cover calls to the Poli Page API only. The PDF download from the presigned URL (`render().pdf`, `render().pdfStream`, `renderToFile`, `documents().downloadPdf`) is a single attempt outside the retry loop, so no hook fires for it.
+`onRequest`, `onResponse` and `onRetry` cover calls to the Poli Page API only. The PDF download from the presigned URL (`render().pdf`, `render().pdfStream`, `renderToFile`, `documents().downloadPdf`) is a single attempt outside the retry loop; only `onError` fires for it, when it fails.
 
 The hooks run inline and synchronously: on the calling thread with the blocking facades; with the async facades they can run on an HTTP client thread instead. A hook that throws is caught and swallowed — a faulty hook will never break the request.
 
