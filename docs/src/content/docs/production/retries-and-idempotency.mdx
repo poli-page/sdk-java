@@ -15,7 +15,7 @@ The Poli Page SDK retries transient failures automatically. Every `POST` carries
 - 4xx responses (other than 429) are never retried, nor is the presigned-URL download.
 - `requestTimeout` bounds each attempt as a whole, the answer's body included.
 - Interrupts and async cancellations are never retried: an interrupted blocking call throws `aborted` at once, during an attempt or a wait; a cancelled future stops the attempt in flight or the wait.
-- The SDK's retries are the only resends. The JDK HTTP client would send a `GET` again by itself when a connection closes before any answer (any method with `-Djdk.httpclient.enableAllMethodRetry=true`); the SDK refuses that, so the failure is a `network_error` it retries itself, counted by `maxRetries` and reported to `onRequest` and `onRetry`.
+- The SDK's retries are the only resends. The JDK HTTP client would send a `GET` again by itself when a connection closes before any answer (any method with `-Djdk.httpclient.enableAllMethodRetry=true`); the SDK refuses that, so the failure is a `network_error` it retries itself, counted by `maxRetries` and reported to `onRequest` and `onRetry`. That includes an HTTP/2 stream the server refused (GOAWAY, `REFUSED_STREAM`), which the JDK used to resend at once: it now waits the backoff, and with `maxRetries(0)` surfaces as `network_error`.
 
 ## Disabling retries
 

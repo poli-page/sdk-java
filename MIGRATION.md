@@ -20,6 +20,9 @@ until the bucket access is restored, so surface them instead.
 
 ### 2. `DOWNLOAD_FAILED` is uppercase
 
+`PoliPageErrorCode.DOWNLOAD_FAILED` is a compile-time constant: code compiled
+against 0.10.0 has the old value inlined. Recompile against the new version.
+
 ```java
 // before
 if ("download_failed".equals(ex.code())) { … }
@@ -39,12 +42,19 @@ failed`, `Request timed out after <ms>ms`, `Request was aborted`, `apiKey is
 required`, `Failed to download PDF: HTTP <status>` and `Failed to download
 PDF: network error`. The JDK exception is `getCause()`.
 
-### 4. Hooks
+### 4. Async cancellation
+
+`cancel(true)` on an async future now stops the call. `get()` / `join()`
+throw `CancellationException` as before; its `getCause()` is the SDK's
+`aborted` `PoliPageException`.
+
+### 5. Hooks
 
 - `RetryEvent.attempt()` is the attempt about to start: `2` before the first
   retry (was `0`). Add 2 to an old value to get the new one.
 - `onResponse` fires on 2xx answers only, after the body.
-- `onError` fires with every error a call throws, API errors included.
+- `onError` fires once with every error a call ends with, API errors and a
+  cancelled async future included.
 
 ## From 0.9.x to 0.10.0
 

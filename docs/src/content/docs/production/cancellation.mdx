@@ -3,7 +3,7 @@ title: Cancellation
 description: How to cancel in-flight requests with thread interrupts or CompletableFuture.cancel.
 ---
 
-The Java SDK exposes two cancellation idioms — one per facade. Blocking calls honor `Thread.interrupt()`, which surfaces as a `PoliPageException` with `code() == "aborted"` and the message `Request was aborted`. Async calls honor `CompletableFuture.cancel(true)`; the future then completes with the JDK's `CancellationException`, as every cancelled `CompletableFuture` does. Either way the SDK stops at once: the request in flight is cancelled, a wait before a retry ends, and no further request is sent.
+The Java SDK exposes two cancellation idioms — one per facade. Blocking calls honor `Thread.interrupt()`, which surfaces as a `PoliPageException` with `code() == "aborted"` and the message `Request was aborted`. Async calls honor `CompletableFuture.cancel(true)`; `get()` and `join()` then throw a `CancellationException` (the `Future` contract) whose `getCause()` is that same `aborted` `PoliPageException`. `onError` fires once with it either way. Either way the SDK stops at once: the request in flight is cancelled, a wait before a retry ends, and no further request is sent.
 
 ## Blocking facade
 
@@ -36,7 +36,11 @@ CompletableFuture<byte[]> future = client.renderAsync().pdf(input);
 ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
 timer.schedule(() -> future.cancel(true), 5, TimeUnit.SECONDS);
 
-byte[] pdf = future.get(); // throws CancellationException if cancelled
+try {
+    byte[] pdf = future.get();
+} catch (CancellationException e) {
+    PoliPageException aborted = (PoliPageException) e.getCause(); // code() == "aborted"
+}
 ```
 
 ## Cancellation vs timeout

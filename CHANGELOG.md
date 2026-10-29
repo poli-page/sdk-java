@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Conformance with the Poli Page API contract v1.2.0
+Conformance with the Poli Page API contract v1.3.0
 ([poli-page/api-contract](https://github.com/poli-page/api-contract)). See
 [MIGRATION.md](MIGRATION.md#from-0100-to-the-next-release).
 
@@ -24,8 +24,9 @@ Conformance with the Poli Page API contract v1.2.0
   storage status (it was `true` for a storage 5xx or 429), and for `aborted`.
   The presigned-URL download is never retried.
 - **BREAKING**: `PoliPageErrorCode.DOWNLOAD_FAILED` is `"DOWNLOAD_FAILED"`
-  (was `"download_failed"`), the SDK specification's code. Code that compares
-  `ex.code()` with the constant is unaffected; code that compares with the
+  (was `"download_failed"`), the SDK specification's code. It is a
+  compile-time constant: code compiled against 0.10.0 has `"download_failed"`
+  inlined, so recompile against the new version. Code that compares with the
   literal string must change.
 - **BREAKING**: SDK error messages are the SDK specification's exact texts:
   - `network_error`: `Network request failed` (was `<METHOD> <path> failed:
@@ -48,9 +49,10 @@ Conformance with the Poli Page API contract v1.2.0
 - **BREAKING**: `onResponse` fires on 2xx answers only, once the body is read,
   and `durationMs` covers the body (it fired on every answer, error statuses
   included, before the body was read).
-- **BREAKING**: `onError` fires once with every error a call throws: API
-  errors, `network_error`, `timeout`, `aborted` and `DOWNLOAD_FAILED` (it
-  fired only on exhausted transport failures).
+- **BREAKING**: `onError` fires once with every error a call ends with: API
+  errors, `network_error`, `timeout`, `aborted` (also for a cancelled async
+  future), `DOWNLOAD_FAILED`, `invalid_response`, `io_error` and any other
+  exception the call throws (it fired only on exhausted transport failures).
 - A `Retry-After` header must be digits (delta-seconds) or an HTTP-date. A
   negative or fractional value (`-1`, `1.5`) is now ignored and the backoff
   applies (a negative value meant "retry at once"); a value too large for a
@@ -81,10 +83,17 @@ Conformance with the Poli Page API contract v1.2.0
   `DOWNLOAD_FAILED` (unchecked) from `read()`, not a raw `IOException`;
   `renderToFile` therefore throws `DOWNLOAD_FAILED` rather than `io_error`
   in that case.
-- Cancelling a future of `renderAsync()` or `documentsAsync()` now cancels the
-  attempt in flight, the wait before a retry or the download; no further
-  request is sent. It used to cancel only the returned future and let the
-  retries go on.
+- **BREAKING**: Cancelling a future of `renderAsync()`, `documentsAsync()` or
+  `renderToFileAsync()` aborts the call: the attempt in flight, the wait
+  before a retry or the download is cancelled and no further request is sent
+  (it used to cancel only the returned future and let the retries and the
+  download go on). `get()` / `join()` still throw `CancellationException`,
+  now with the SDK's `aborted` error (`Request was aborted`) as its cause, and
+  `onError` fires once with it. A PDF stream that arrives after the cancel is
+  closed.
+- The JDK client's fixed 10 s connect timeout is gone: `requestTimeout`
+  bounds the connect like the rest of the attempt. A connect that hung used to
+  fail after 10 s with `Request timed out after <requestTimeout>ms`.
 - A retry wait is never shorter than the delay: the blocking sleep and the
   async timer wait again for the rest when they wake early.
 - An error answer's `Retry-After` larger than a `long` no longer falls back to
@@ -97,6 +106,7 @@ Conformance with the Poli Page API contract v1.2.0
 
 - Known error code `TEMPLATE_UNSAFE` (400: the template, a partial or an SVG
   asset holds an injection attempt; its message names it; not retried).
+- An explicit `serialVersionUID` on every exception class.
 - Exception constructors that take a cause: `PoliPageAuthException`,
   `PoliPageValidationException`, `PoliPageNotFoundException`,
   `PoliPageGoneException` and `PoliPageRateLimitException`.

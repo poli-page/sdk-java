@@ -181,7 +181,7 @@ const SDK_INTERNAL_ERRORS = [
   { code: 'invalid_options', when: 'Builder validation failed (a missing or blank apiKey gives `apiKey is required`, a non-absolute baseUrl, etc.). Thrown synchronously by PoliPageClient.Builder.build().' },
   { code: 'network_error', when: 'TCP/TLS-layer failure reaching the API, or a connection closed before or during the answer. Message `Network request failed`. Retryable.' },
   { code: 'timeout', when: 'An attempt, body included, did not complete within the configured requestTimeout. Message `Request timed out after <ms>ms`. Retryable.' },
-  { code: 'aborted', when: 'Caller interrupted a blocking call. Message `Request was aborted`. A cancelled CompletableFuture completes with CancellationException instead. Not retryable.' },
+  { code: 'aborted', when: 'Caller interrupted a blocking call or cancelled the CompletableFuture (whose CancellationException has this error as cause). Message `Request was aborted`. Not retryable.' },
   { code: 'DOWNLOAD_FAILED', when: 'The presigned PDF URL download failed: `Failed to download PDF: HTTP <status>` with the storage status (typically 403 for an expired URL), or `Failed to download PDF: network error` with no status. Not retryable.' },
   { code: 'io_error', when: 'Local file write failed inside renderToFile.' },
   { code: 'invalid_response', when: 'The API returned a 2xx response whose body could not be parsed as the expected type.' },

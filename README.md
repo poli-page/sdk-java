@@ -286,7 +286,7 @@ future
     .whenComplete((res, err) -> deadline.cancel(false));
 ```
 
-`future.cancel(true)` interrupts the underlying HTTP attempt and triggers the SDK's `CancellationException`-path. Cancelled futures are never retried.
+`future.cancel(true)` aborts the call: the HTTP attempt in flight, the wait before a retry or the PDF download is cancelled and no further request is sent. `get()` / `join()` then throw a `CancellationException` whose `getCause()` is the SDK's `aborted` `PoliPageException`, and `onError` fires once with it. Cancelled calls are never retried.
 
 ## Observability
 
