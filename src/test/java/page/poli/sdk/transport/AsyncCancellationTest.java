@@ -91,6 +91,7 @@ class AsyncCancellationTest {
       throws Exception {
     Path file = dir.resolve("out.pdf");
     cancelDuringDownload(sdk -> sdk.renderToFileAsync(input(), file));
+
     assertThat(Files.exists(file)).isFalse();
   }
 
@@ -134,6 +135,79 @@ class AsyncCancellationTest {
 
       assertThat(id.join()).isEqualTo("doc_abc123");
       assertThat(id.getClass()).isEqualTo(CompletableFuture.class);
+    }
+  }
+
+  @Test
+  void a_second_cancel_keeps_the_aborted_cause_and_reports_nothing_more() throws Exception {
+    try (MockServer server = serve(List.of(fixed(new MockServer.Hang())))) {
+      List<Throwable> errors = new CopyOnWriteArrayList<>();
+      PoliPageClient sdk = client(server).onError(errors::add).build();
+      CompletableFuture<?> future = sdk.documentsAsync().get("doc_abc123");
+      awaitRequests(server, 1);
+
+      assertThat(future.cancel(true)).isTrue();
+      assertThat(future.cancel(true)).isTrue();
+      assertThat(future.cancel(false)).isTrue();
+
+      assertAborted(future, errors);
+      assertThatThrownBy(() -> future.get())
+          .isInstanceOf(CancellationException.class)
+          .cause()
+          .isSameAs(errors.get(0));
+    }
+  }
+
+  @Test
+  void concurrent_cancels_report_once() throws Exception {
+    try (MockServer server = serve(List.of(fixed(new MockServer.Hang())))) {
+      List<Throwable> errors = new CopyOnWriteArrayList<>();
+      PoliPageClient sdk = client(server).onError(errors::add).build();
+      CompletableFuture<?> future = sdk.documentsAsync().get("doc_abc123");
+      awaitRequests(server, 1);
+
+      List<CompletableFuture<Boolean>> cancels = new java.util.ArrayList<>();
+      for (int i = 0; i < 8; i++) {
+        cancels.add(CompletableFuture.supplyAsync(() -> future.cancel(true)));
+      }
+
+      assertThat(cancels).allSatisfy(c -> assertThat(c.join()).isTrue());
+      assertAborted(future, errors);
+    }
+  }
+
+  @Test
+  void cancelling_render_to_file_during_the_copy_stops_it_and_deletes_the_file(@TempDir Path dir)
+      throws Exception {
+    // 4000 bytes, one every 2 ms: the copy takes about 8 s.
+    byte[] pdf = new byte[4000];
+    java.util.Arrays.fill(pdf, (byte) 'x');
+    MockServer.Answer drip =
+        new MockServer.Answer(200, java.util.Map.of("Content-Type", "application/pdf"), pdf, -1, 2);
+    try (MockServer server = serve(List.of(descriptor(), fixed(drip)))) {
+      List<Throwable> errors = new CopyOnWriteArrayList<>();
+      PoliPageClient sdk = client(server).onError(errors::add).build();
+      Path file = dir.resolve("out.pdf");
+      CompletableFuture<?> future = sdk.renderToFileAsync(input(), file);
+      awaitRequests(server, 2);
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+      while (!Files.exists(file) && System.nanoTime() < deadline) {
+        TimeUnit.MILLISECONDS.sleep(5);
+      }
+      assertThat(file).as("the copy started").exists();
+
+      assertThat(future.cancel(true)).isTrue();
+      deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+      while (server.answersCutByClient().isEmpty() && System.nanoTime() < deadline) {
+        TimeUnit.MILLISECONDS.sleep(10);
+      }
+      TimeUnit.MILLISECONDS.sleep(300);
+
+      assertThat(server.answersCutByClient())
+          .as("the client closed the download")
+          .containsExactly(1);
+      assertThat(file).doesNotExist();
+      assertAborted(future, errors);
     }
   }
 }

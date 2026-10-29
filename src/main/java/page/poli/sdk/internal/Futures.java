@@ -1,6 +1,7 @@
 package page.poli.sdk.internal;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 
@@ -32,6 +33,23 @@ public final class Futures {
    */
   public <T, R> CallFuture<R> map(
       CompletableFuture<T> upstream, Function<? super T, ? extends R> fn) {
+    return map(upstream, (value, call) -> fn.apply(value));
+  }
+
+  /**
+   * Like {@link #map(CompletableFuture, Function)}, for a step that takes long once the value is
+   * there (copying a PDF stream to a file): {@code fn} gets the call's future too, to register with
+   * {@link CallFuture#onAbort(Runnable)} what stops that step, and to see whether the call was
+   * aborted meanwhile.
+   *
+   * @param upstream the stage in flight
+   * @param fn maps its value; a thrown exception fails the returned future
+   * @param <T> upstream value type
+   * @param <R> result type
+   * @return a future of {@code fn(value, call)}; cancelling it cancels {@code upstream}
+   */
+  public <T, R> CallFuture<R> map(
+      CompletableFuture<T> upstream, BiFunction<? super T, CallFuture<R>, ? extends R> fn) {
     CallFuture<R> result = new CallFuture<>(hooks);
     result.onAbort(() -> cancelStage(upstream));
     upstream.whenComplete(
@@ -89,10 +107,10 @@ public final class Futures {
   }
 
   private static <T, R> void deliver(
-      CallFuture<R> result, T value, Function<? super T, ? extends R> fn) {
+      CallFuture<R> result, T value, BiFunction<? super T, CallFuture<R>, ? extends R> fn) {
     R mapped;
     try {
-      mapped = fn.apply(value);
+      mapped = fn.apply(value, result);
     } catch (Throwable t) {
       result.completeExceptionally(t);
       return;
@@ -111,8 +129,12 @@ public final class Futures {
     }
   }
 
-  /** Close a value nobody will read, such as a PDF stream that arrived after a cancel. */
-  static void discard(@Nullable Object value) {
+  /**
+   * Close a value nobody will read, such as a PDF stream that arrived after a cancel.
+   *
+   * @param value the value; only an {@link AutoCloseable} is closed
+   */
+  public static void discard(@Nullable Object value) {
     if (value instanceof AutoCloseable closeable) {
       try {
         closeable.close();

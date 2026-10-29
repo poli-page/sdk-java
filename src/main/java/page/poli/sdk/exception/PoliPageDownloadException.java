@@ -14,7 +14,7 @@ public final class PoliPageDownloadException extends PoliPageException {
   private static final long serialVersionUID = 1L;
 
   /**
-   * @param code the SDK-internal code; typically {@code "download_failed"}
+   * @param code the SDK-internal code; {@code DOWNLOAD_FAILED}
    * @param statusCode the S3 status code, or {@code 0} for transport failures
    * @param message human-readable message
    * @param cause the underlying transport exception, or {@code null}

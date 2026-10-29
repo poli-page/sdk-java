@@ -1,11 +1,12 @@
 package page.poli.sdk.internal;
 
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.jspecify.annotations.Nullable;
 import page.poli.sdk.PoliPageErrorCode;
 import page.poli.sdk.exception.PoliPageException;
 
@@ -24,18 +25,20 @@ import page.poli.sdk.exception.PoliPageException;
 public final class CallFuture<T> extends CompletableFuture<T> {
 
   private final Hooks hooks;
-  private volatile @Nullable Runnable onAbort;
-  private volatile @Nullable CancellationException cancellation;
+  private final List<Runnable> onAbort = new CopyOnWriteArrayList<>();
 
   CallFuture(Hooks hooks) {
     this.hooks = hooks;
   }
 
   /**
-   * @param action what cancels the work in flight; runs at once if the call was already aborted
+   * Register what stops the work in flight when the call is aborted. It runs at once if the call
+   * was already aborted.
+   *
+   * @param action cancels a stage, closes a stream…
    */
-  void onAbort(Runnable action) {
-    onAbort = action;
+  public void onAbort(Runnable action) {
+    onAbort.add(action);
     if (isCancelled()) {
       action.run();
     }
@@ -45,7 +48,7 @@ public final class CallFuture<T> extends CompletableFuture<T> {
    * Abort the call. Whatever {@code mayInterruptIfRunning}, the work in flight is cancelled.
    *
    * @param mayInterruptIfRunning ignored
-   * @return {@code true} if this call ended here
+   * @return {@code true} if the call is aborted: by this call, or by an earlier one
    */
   @Override
   public boolean cancel(boolean mayInterruptIfRunning) {
@@ -58,17 +61,18 @@ public final class CallFuture<T> extends CompletableFuture<T> {
   }
 
   private boolean abort(boolean report) {
+    if (isDone()) {
+      return isCancelled();
+    }
     PoliPageException aborted =
         new PoliPageException(PoliPageErrorCode.ABORTED, 0, "Request was aborted", null, null);
     CancellationException cancelled = new CancellationException("Request was aborted");
     cancelled.initCause(aborted);
-    cancellation = cancelled;
     if (!completeExceptionally(cancelled)) {
-      cancellation = null;
-      return false;
+      // Another cancel, or the call's own outcome, got there first: nothing more to report.
+      return isCancelled();
     }
-    Runnable action = onAbort;
-    if (action != null) {
+    for (Runnable action : onAbort) {
       action.run();
     }
     if (report) {
@@ -117,9 +121,13 @@ public final class CallFuture<T> extends CompletableFuture<T> {
     }
   }
 
-  private CancellationException own(CancellationException thrown) {
-    CancellationException cancelled = cancellation;
-    return cancelled != null ? cancelled : thrown;
+  /** The exception this future completed with, unwrapped from the JDK's own if it wraps it. */
+  private static CancellationException own(CancellationException thrown) {
+    if (thrown.getCause() instanceof CancellationException completedWith
+        && completedWith.getCause() instanceof PoliPageException) {
+      return completedWith;
+    }
+    return thrown;
   }
 
   @Override

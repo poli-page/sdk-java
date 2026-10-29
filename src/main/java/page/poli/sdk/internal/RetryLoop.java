@@ -240,8 +240,9 @@ public final class RetryLoop {
       try {
         exchange = call.send(capture);
       } catch (RuntimeException e) {
-        hooks.error(e);
-        result.completeExceptionally(e);
+        if (result.completeExceptionally(e)) {
+          hooks.error(e);
+        }
         return;
       }
       track(exchange);
@@ -271,14 +272,16 @@ public final class RetryLoop {
         return;
       }
       if (outcome instanceof Crash crash) {
-        hooks.error(crash.error());
-        result.completeExceptionally(crash.error());
+        if (result.completeExceptionally(crash.error())) {
+          hooks.error(crash.error());
+        }
         return;
       }
       Failure failure = (Failure) outcome;
       if (!failure.error().isRetryable() || attempt > maxRetries) {
-        hooks.error(failure.error());
-        result.completeExceptionally(failure.error());
+        if (result.completeExceptionally(failure.error())) {
+          hooks.error(failure.error());
+        }
         return;
       }
       Duration delay = delayBefore(attempt, failure);

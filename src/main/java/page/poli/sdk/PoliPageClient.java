@@ -21,6 +21,7 @@ import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.internal.Backoff;
 import page.poli.sdk.internal.Download;
+import page.poli.sdk.internal.Futures;
 import page.poli.sdk.internal.Hooks;
 import page.poli.sdk.internal.HttpTransport;
 import page.poli.sdk.internal.RetryLoop;
@@ -155,12 +156,22 @@ public final class PoliPageClient {
   public CompletableFuture<Void> renderToFileAsync(RenderInput input, Path path) {
     return calls
         .futures()
-        .map(
+        .<InputStream, Void>map(
             renderAsync.pdfStream(input),
-            stream -> {
+            (stream, call) -> {
+              // An abort during the copy closes the stream, so the copy stops at once.
+              call.onAbort(() -> Futures.discard(stream));
               try (InputStream s = stream) {
                 Files.copy(s, path, StandardCopyOption.REPLACE_EXISTING);
-              } catch (IOException e) {
+              } catch (IOException | RuntimeException e) {
+                if (call.isDone()) {
+                  // Aborted: the abort is the call's one error; drop the partial file.
+                  deleteQuietly(path);
+                  return null;
+                }
+                if (e instanceof RuntimeException runtime) {
+                  throw runtime;
+                }
                 throw calls.failed(
                     new PoliPageException(
                         "io_error",
@@ -169,8 +180,19 @@ public final class PoliPageClient {
                         null,
                         e));
               }
+              if (call.isDone()) {
+                deleteQuietly(path);
+              }
               return null;
             });
+  }
+
+  private static void deleteQuietly(Path path) {
+    try {
+      Files.deleteIfExists(path);
+    } catch (IOException ignored) {
+      // best effort: the call is already aborted
+    }
   }
 
   /** Package-private accessor used by tests to assert defaults. Not part of the public API. */

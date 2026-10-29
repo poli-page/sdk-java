@@ -137,7 +137,11 @@ public final class Download {
       Thread.currentThread().interrupt();
       throw fail(aborted(e));
     }
-    return checked(response);
+    try {
+      return checked(response);
+    } catch (PoliPageException e) {
+      throw fail(e);
+    }
   }
 
   /**
@@ -183,14 +187,13 @@ public final class Download {
                 Futures.discard(value);
               }
             } else if (timedOut.get()) {
-              result.completeExceptionally(
-                  fail(failure(started.capture().info(), new TimeoutException("download"))));
+              failAsync(
+                  result, failure(started.capture().info(), new TimeoutException("download")));
             } else {
-              result.completeExceptionally(
-                  fail(failure(started.capture().info(), RetryLoop.unwrap(error))));
+              failAsync(result, failure(started.capture().info(), RetryLoop.unwrap(error)));
             }
           } catch (PoliPageException e) {
-            result.completeExceptionally(e);
+            failAsync(result, e);
           }
         });
     return result;
@@ -208,7 +211,14 @@ public final class Download {
         // already failing
       }
     }
-    throw fail(httpFailure(status, null));
+    throw httpFailure(status, null);
+  }
+
+  /** Fail the download, firing {@code onError} only if no cancel got there first. */
+  private void failAsync(CompletableFuture<?> result, PoliPageException error) {
+    if (result.completeExceptionally(error)) {
+      hooks.error(error);
+    }
   }
 
   private PoliPageException fail(PoliPageException error) {
@@ -248,8 +258,16 @@ public final class Download {
    */
   private final class DownloadStream extends FilterInputStream {
 
+    private volatile boolean closed;
+
     DownloadStream(InputStream body) {
       super(body);
+    }
+
+    @Override
+    public void close() throws IOException {
+      closed = true;
+      super.close();
     }
 
     @Override
@@ -257,7 +275,7 @@ public final class Download {
       try {
         return super.read();
       } catch (IOException e) {
-        throw fail(mapped(e));
+        throw readFailure(e);
       }
     }
 
@@ -266,7 +284,7 @@ public final class Download {
       try {
         return super.read(buffer, offset, length);
       } catch (IOException e) {
-        throw fail(mapped(e));
+        throw readFailure(e);
       }
     }
 
@@ -275,8 +293,17 @@ public final class Download {
       try {
         return super.skip(n);
       } catch (IOException e) {
-        throw fail(mapped(e));
+        throw readFailure(e);
       }
+    }
+
+    /**
+     * A read that fails once the stream was closed — by the caller, or by an abort from another
+     * thread — is not a download failure to report: {@code onError} stays quiet.
+     */
+    private PoliPageException readFailure(IOException e) {
+      PoliPageException error = mapped(e);
+      return closed ? error : fail(error);
     }
 
     private PoliPageException mapped(IOException e) {

@@ -12,6 +12,9 @@ import page.poli.sdk.exception.PoliPageException;
 /**
  * The connect is bounded by {@code requestTimeout} like the rest of the attempt, so a timeout
  * always reports the bound that fired: the JDK client has no connect timeout of its own.
+ *
+ * <p>The factory assertion is what pins that: the blackhole test runs with a 1.5 s timeout, under
+ * any connect timeout the JDK client could have, so it only checks the message and the bound.
  */
 class ConnectBoundTest {
 

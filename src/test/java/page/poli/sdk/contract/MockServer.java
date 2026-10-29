@@ -111,6 +111,7 @@ public final class MockServer implements AutoCloseable {
   private final String origin;
   private final List<Recorded> requests = Collections.synchronizedList(new ArrayList<>());
   private final List<String> problems = Collections.synchronizedList(new ArrayList<>());
+  private final List<Integer> cutByClient = Collections.synchronizedList(new ArrayList<>());
   private final Set<Socket> sockets = ConcurrentHashMap.newKeySet();
   private final AtomicInteger connections = new AtomicInteger();
   private final Object arrivalOrder = new Object();
@@ -165,6 +166,15 @@ public final class MockServer implements AutoCloseable {
   public List<Recorded> requests() {
     synchronized (requests) {
       return List.copyOf(requests);
+    }
+  }
+
+  /**
+   * @return the 0-based indexes of the requests whose answer the client cut off mid-way
+   */
+  public List<Integer> answersCutByClient() {
+    synchronized (cutByClient) {
+      return List.copyOf(cutByClient);
     }
   }
 
@@ -249,7 +259,15 @@ public final class MockServer implements AutoCloseable {
           }
           return;
         }
-        if (!answer(out, (Answer) reply)) {
+        boolean keepOpen;
+        try {
+          keepOpen = answer(out, (Answer) reply);
+        } catch (SocketException clientClosed) {
+          // The 0-based index of the request whose answer the client cut off.
+          cutByClient.add(index);
+          return;
+        }
+        if (!keepOpen) {
           return;
         }
       }
