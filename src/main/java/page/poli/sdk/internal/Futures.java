@@ -56,9 +56,11 @@ public final class Futures {
         (value, error) -> {
           if (error != null) {
             result.completeExceptionally(RetryLoop.unwrap(error));
-          } else if (result.isDone()) {
+          } else if (result.isCancelled()) {
             discard(value);
           } else {
+            // Also when the caller completed the future itself (complete(), orTimeout()): that is
+            // not an abort, so the step runs, and a value nobody can receive is then closed.
             deliver(result, value, fn);
           }
         });
