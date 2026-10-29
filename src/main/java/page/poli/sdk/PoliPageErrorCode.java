@@ -19,11 +19,11 @@ package page.poli.sdk;
  * <p>The API's set of codes is open: {@code ex.code()} is whatever string the API returns,
  * including codes not listed here, so keep a {@code default} branch.
  *
- * <p>The constant <strong>values</strong> are kept verbatim with the wire / Node SDK forms — that's
- * why API codes are {@code SCREAMING_SNAKE_CASE} but the SDK-internal codes are lowercase ({@code
- * "network_error"}, not {@code "NETWORK_ERROR"}). Constant <strong>names</strong> follow Java's
- * idiomatic uppercase. Comparing {@code ex.code()} against these constants therefore matches by
- * value, not by name.
+ * <p>The constant <strong>values</strong> are the SDK specification's, the same in every Poli Page
+ * SDK — that's why API codes are {@code SCREAMING_SNAKE_CASE} but most SDK-internal codes are
+ * lowercase ({@code "network_error"}, not {@code "NETWORK_ERROR"}); {@code DOWNLOAD_FAILED} is the
+ * uppercase exception. Constant <strong>names</strong> follow Java's idiomatic uppercase. Comparing
+ * {@code ex.code()} against these constants therefore matches by value, not by name.
  */
 public final class PoliPageErrorCode {
 
@@ -131,6 +131,12 @@ public final class PoliPageErrorCode {
    */
   public static final String TEMPLATE_ERROR = "TEMPLATE_ERROR";
 
+  /**
+   * HTTP 400. The template, a partial or an SVG asset holds an injection attempt; the error's
+   * {@code detail} (its message) names it. Not retried.
+   */
+  public static final String TEMPLATE_UNSAFE = "TEMPLATE_UNSAFE";
+
   /** HTTP 413. The request body is over the whole-body cap, 2 MB on {@code /v1/render}. */
   public static final String RENDER_BODY_TOO_LARGE = "RENDER_BODY_TOO_LARGE";
 
@@ -144,13 +150,13 @@ public final class PoliPageErrorCode {
 
   /**
    * HTTP 429. The Free tier's monthly render quota is reached; Free has no overage. {@code
-   * Retry-After} is the time left until the monthly reset.
+   * Retry-After} is the time left until the monthly reset. Never retried.
    */
   public static final String QUOTA_EXCEEDED = "QUOTA_EXCEEDED";
 
   /**
    * HTTP 429. A paid tier's monthly overage cap is reached. {@code Retry-After} is the time left
-   * until the monthly reset.
+   * until the monthly reset. Never retried.
    */
   public static final String OVERAGE_CAP_EXCEEDED = "OVERAGE_CAP_EXCEEDED";
 
@@ -177,7 +183,7 @@ public final class PoliPageErrorCode {
 
   /**
    * HTTP 502. The organization's bring-your-own (BYO) bucket refuses access: its role cannot be
-   * assumed, or it refuses an operation.
+   * assumed, or it refuses an operation. Never retried: it lasts until the access is restored.
    */
   public static final String STORAGE_ACCESS_DENIED = "STORAGE_ACCESS_DENIED";
 
@@ -198,8 +204,12 @@ public final class PoliPageErrorCode {
   /** Builder-level validation failure (caught locally — never goes on the wire). */
   public static final String INVALID_OPTIONS = "invalid_options";
 
-  /** Presigned PDF URL fetch failed. */
-  public static final String DOWNLOAD_FAILED = "download_failed";
+  /**
+   * The presigned-URL download failed: a non-2xx storage answer (its status is the error's status,
+   * an expired URL gets 403) or no answer at all (status {@code 0}). Never retried. Uppercase like
+   * the API codes, as the SDK specification names it.
+   */
+  public static final String DOWNLOAD_FAILED = "DOWNLOAD_FAILED";
 
   private PoliPageErrorCode() {}
 }

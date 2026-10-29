@@ -44,10 +44,12 @@ class PoliPageErrorCodeTest {
           "DOCUMENT_NOT_FOUND",
           "QUOTA_EXCEEDED",
           "OVERAGE_CAP_EXCEEDED",
-          "INTERNAL_ERROR");
+          "INTERNAL_ERROR",
+          // Added by SDK spec §8.4 (contract v1.2.0).
+          "TEMPLATE_UNSAFE");
 
   private static final List<String> SDK_CODES =
-      List.of("network_error", "timeout", "aborted", "invalid_options", "download_failed");
+      List.of("network_error", "timeout", "aborted", "invalid_options", "DOWNLOAD_FAILED");
 
   private static List<String> declaredValues() throws IllegalAccessException {
     List<String> values = new ArrayList<>();
@@ -64,8 +66,8 @@ class PoliPageErrorCodeTest {
   }
 
   @Test
-  void known_codes_are_exactly_the_31_api_codes_plus_the_sdk_codes() throws Exception {
-    assertThat(API_CODES).hasSize(31).doesNotHaveDuplicates();
+  void known_codes_are_exactly_the_32_api_codes_plus_the_sdk_codes() throws Exception {
+    assertThat(API_CODES).hasSize(32).doesNotHaveDuplicates();
 
     List<String> expected = new ArrayList<>(API_CODES);
     expected.addAll(SDK_CODES);

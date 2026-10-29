@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import page.poli.sdk.PoliPageErrorCode;
 
 class PoliPageExceptionPredicatesTest {
 
@@ -112,6 +113,55 @@ class PoliPageExceptionPredicatesTest {
     void false_for_api_error() {
       PoliPageException e = new PoliPageValidationException("VALIDATION_ERROR", 400, "no", null);
       assertThat(e.isNetworkError()).isFalse();
+    }
+  }
+
+  @Nested
+  class IsRetryable {
+
+    @Test
+    void true_for_5xx_429_network_error_and_timeout() {
+      assertThat(new PoliPageException("INTERNAL_ERROR", 500, "x", null, null).isRetryable())
+          .isTrue();
+      assertThat(new PoliPageException("PUBLISH_IN_PROGRESS", 503, "x", null, null).isRetryable())
+          .isTrue();
+      assertThat(
+              new PoliPageRateLimitException("RATE_LIMIT_EXCEEDED", 429, "x", null, null)
+                  .isRetryable())
+          .isTrue();
+      assertThat(new PoliPageNetworkException("network_error", "x", null).isRetryable()).isTrue();
+      assertThat(new PoliPageNetworkException("timeout", "x", null).isRetryable()).isTrue();
+    }
+
+    @Test
+    void false_for_the_codes_waiting_cannot_fix() {
+      assertThat(
+              new PoliPageRateLimitException("QUOTA_EXCEEDED", 429, "x", null, null).isRetryable())
+          .isFalse();
+      assertThat(
+              new PoliPageRateLimitException("OVERAGE_CAP_EXCEEDED", 429, "x", null, null)
+                  .isRetryable())
+          .isFalse();
+      assertThat(new PoliPageException("STORAGE_ACCESS_DENIED", 502, "x", null, null).isRetryable())
+          .isFalse();
+    }
+
+    @Test
+    void false_for_download_failed_whatever_the_storage_status() {
+      for (int status : new int[] {0, 403, 429, 500, 503}) {
+        PoliPageException e =
+            new PoliPageDownloadException(
+                PoliPageErrorCode.DOWNLOAD_FAILED, status, "Failed to download PDF", null);
+        assertThat(e.isRetryable()).as("storage status %d", status).isFalse();
+      }
+    }
+
+    @Test
+    void false_for_aborted_and_client_errors() {
+      assertThat(new PoliPageException("aborted", 0, "x", null, null).isRetryable()).isFalse();
+      assertThat(new PoliPageValidationException("VALIDATION_ERROR", 400, "x", null).isRetryable())
+          .isFalse();
+      assertThat(new PoliPageInvalidOptionsException("apiKey is required").isRetryable()).isFalse();
     }
   }
 }

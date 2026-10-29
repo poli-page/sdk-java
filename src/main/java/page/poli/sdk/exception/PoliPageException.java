@@ -29,8 +29,13 @@ import page.poli.sdk.PoliPageErrorCode;
  * <p>The wire codes are documented in {@link PoliPageErrorCode}.
  *
  * <p>The {@code statusCode} field uses {@code 0} as a sentinel for "no HTTP status available"
- * (network error, timeout, caller-aborted) — {@code 0} is not a valid HTTP status, so this never
- * collides with a real value.
+ * (network error, timeout, caller-aborted, a download that got no answer) — {@code 0} is not a
+ * valid HTTP status, so this never collides with a real value.
+ *
+ * <p>The SDK's own errors keep the underlying failure as {@link #getCause()}: the JDK's I/O or
+ * timeout exception of a {@code network_error}, {@code timeout} or {@code DOWNLOAD_FAILED}, the
+ * {@link InterruptedException} of an {@code aborted} call, and the read failure of an error answer
+ * whose body broke off.
  */
 public sealed class PoliPageException extends RuntimeException
     permits PoliPageAuthException,
@@ -91,20 +96,28 @@ public sealed class PoliPageException extends RuntimeException
   }
 
   /**
-   * Whether the SDK considers this error retryable (5xx, 429, network failure, timeout). The SDK
-   * has already retried internally up to {@code maxRetries}; this predicate is mainly useful when
-   * an outer queue / scheduler decides whether to re-enqueue.
+   * Whether the SDK considers this error retryable: a network failure, a timeout, a {@code 5xx} or
+   * a {@code 429}, except {@code QUOTA_EXCEEDED} and {@code OVERAGE_CAP_EXCEEDED} (they last until
+   * the monthly reset) and {@code STORAGE_ACCESS_DENIED} (it lasts until the bucket access is
+   * restored). Never {@code aborted}, and never {@code DOWNLOAD_FAILED}, whatever the storage
+   * status: the presigned-URL download is not retried. This is the rule the SDK's own retry loop
+   * follows, so it has already retried a retryable error up to {@code maxRetries}; the predicate is
+   * mainly useful when an outer queue / scheduler decides whether to re-enqueue.
    *
    * @return {@code true} if the failure class is generally retryable
    */
   public boolean isRetryable() {
-    if (this instanceof PoliPageNetworkException) {
+    if (PoliPageErrorCode.ABORTED.equals(code)
+        || PoliPageErrorCode.DOWNLOAD_FAILED.equals(code)
+        || PoliPageErrorCode.QUOTA_EXCEEDED.equals(code)
+        || PoliPageErrorCode.OVERAGE_CAP_EXCEEDED.equals(code)
+        || PoliPageErrorCode.STORAGE_ACCESS_DENIED.equals(code)) {
+      return false;
+    }
+    if (isNetworkError()) {
       return true;
     }
-    if (statusCode >= 500) {
-      return true;
-    }
-    return statusCode == 429;
+    return statusCode == 429 || statusCode >= 500;
   }
 
   /**
@@ -116,8 +129,9 @@ public sealed class PoliPageException extends RuntimeException
   }
 
   /**
-   * @return {@code true} for HTTP {@code 429}. The SDK has already retried internally up to {@code
-   *     maxRetries} before surfacing this — back off further at the caller level if you see it.
+   * @return {@code true} for HTTP {@code 429}. The SDK has already retried {@code
+   *     RATE_LIMIT_EXCEEDED} internally up to {@code maxRetries} before surfacing it, and never
+   *     retries {@code QUOTA_EXCEEDED} or {@code OVERAGE_CAP_EXCEEDED}.
    */
   public boolean isRateLimitError() {
     return statusCode == 429;

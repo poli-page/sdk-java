@@ -20,6 +20,9 @@ import org.jspecify.annotations.Nullable;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.internal.Backoff;
+import page.poli.sdk.internal.Download;
+import page.poli.sdk.internal.Futures;
+import page.poli.sdk.internal.Hooks;
 import page.poli.sdk.internal.HttpTransport;
 import page.poli.sdk.internal.RetryLoop;
 import page.poli.sdk.internal.Sleeper;
@@ -57,13 +60,12 @@ public final class PoliPageClient {
   private final RenderAsync renderAsync;
   private final DocumentsAsync documentsAsync;
 
-  private PoliPageClient(
-      PoliPageClientOptions options, Transport transport, ObjectMapper mapper, RetryLoop retry) {
+  private PoliPageClient(PoliPageClientOptions options, Calls calls) {
     this.options = options;
-    this.render = new Render(transport, mapper, retry);
-    this.documents = new Documents(transport, mapper, retry);
-    this.renderAsync = new RenderAsync(transport, mapper, retry);
-    this.documentsAsync = new DocumentsAsync(transport, mapper, retry);
+    this.render = new Render(calls);
+    this.documents = new Documents(calls);
+    this.renderAsync = new RenderAsync(calls);
+    this.documentsAsync = new DocumentsAsync(calls);
   }
 
   /**
@@ -127,7 +129,8 @@ public final class PoliPageClient {
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
-   * @throws PoliPageException on render failure or local file-write failure (code {@code
+   * @throws PoliPageException on render failure, a failed download ({@code DOWNLOAD_FAILED}, also
+   *     when the connection drops while the PDF is read) or local file-write failure (code {@code
    *     "io_error"})
    */
   public void renderToFile(RenderInput input, Path path) {
@@ -148,21 +151,17 @@ public final class PoliPageClient {
    *     failure, with the cause wrapped in {@code CompletionException} per JDK convention)
    */
   public CompletableFuture<Void> renderToFileAsync(RenderInput input, Path path) {
-    return renderAsync
-        .pdfStream(input)
-        .thenAccept(
-            stream -> {
-              try (InputStream s = stream) {
-                Files.copy(s, path, StandardCopyOption.REPLACE_EXISTING);
-              } catch (IOException e) {
-                throw new PoliPageException(
-                    "io_error",
-                    0,
-                    "Failed to write PDF to " + path + ": " + e.getMessage(),
-                    null,
-                    e);
-              }
-            });
+    return Futures.map(
+        renderAsync.pdfStream(input),
+        stream -> {
+          try (InputStream s = stream) {
+            Files.copy(s, path, StandardCopyOption.REPLACE_EXISTING);
+          } catch (IOException e) {
+            throw new PoliPageException(
+                "io_error", 0, "Failed to write PDF to " + path + ": " + e.getMessage(), null, e);
+          }
+          return null;
+        });
   }
 
   /** Package-private accessor used by tests to assert defaults. Not part of the public API. */
@@ -244,8 +243,10 @@ public final class PoliPageClient {
      * Sets the maximum number of retry attempts on top of the initial request. Defaults to {@code
      * 2} (i.e. up to three total attempts).
      *
-     * <p>Retries fire on {@code 5xx} responses, {@code 429}, and network/timeout errors. {@code
-     * 4xx} responses (other than {@code 429}) are never retried.
+     * <p>Retries fire on {@code 5xx} responses, {@code 429}, and network/timeout errors, except
+     * {@code QUOTA_EXCEEDED}, {@code OVERAGE_CAP_EXCEEDED} (429) and {@code STORAGE_ACCESS_DENIED}
+     * (502), which waiting cannot fix. {@code 4xx} responses (other than {@code 429}) are never
+     * retried, nor is the presigned-URL download.
      *
      * @param maxRetries number of retries — must be {@code >= 0}. {@code 0} disables retries.
      * @return this builder
@@ -260,9 +261,10 @@ public final class PoliPageClient {
     }
 
     /**
-     * Sets the base delay between retry attempts. Defaults to {@code 500ms}. The actual delay
-     * follows {@code retryDelay × 2^attempt} with jitter in {@code [0.5, 1.5)}, capped by any
-     * {@code Retry-After} header (max 30s).
+     * Sets the base delay between retry attempts. Defaults to {@code 500ms}. Before retry {@code n}
+     * (1-based) the SDK waits {@code retryDelay × 2^(n-1)} with jitter in {@code [0.5, 1.5)}; a
+     * {@code Retry-After} header (integer seconds or HTTP-date, clamped to 0–30 s) replaces it,
+     * without jitter. {@code Retry-After-Ms} is ignored.
      *
      * @param retryDelay base delay — must be strictly positive
      * @return this builder
@@ -279,11 +281,11 @@ public final class PoliPageClient {
     }
 
     /**
-     * Sets the per-attempt request timeout. Defaults to {@code 60s}. Distinct from the underlying
-     * TCP connect timeout (controlled by {@code java.net.http.HttpClient.Builder.connectTimeout}).
+     * Sets the per-attempt request timeout. Defaults to {@code 60s}. It bounds each attempt as a
+     * whole — connecting, the answer's headers and its body — and the presigned-URL download.
      *
-     * <p>A timeout surfaces as a {@code PoliPageException} with {@code code() == "TIMEOUT"} and is
-     * eligible for retry.
+     * <p>A timeout surfaces as a {@code PoliPageNetworkException} with {@code code() == "timeout"}
+     * and the message {@code Request timed out after <ms>ms}, and is eligible for retry.
      *
      * @param requestTimeout per-attempt timeout — must be strictly positive
      * @return this builder
@@ -301,12 +303,14 @@ public final class PoliPageClient {
     }
 
     /**
-     * Registers a callback fired just before each retry sleep. Useful for metrics, structured logs,
-     * or distributed-trace annotations without instrumenting the SDK's SLF4J output.
+     * Registers a callback fired just before each wait between attempts, with the number of the
+     * attempt about to start ({@code 2} for the first retry), the delay and the reason. Useful for
+     * metrics, structured logs, or distributed-trace annotations without instrumenting the SDK's
+     * SLF4J output.
      *
-     * <p>The hook is invoked synchronously on the thread waiting to retry. A hook that throws is
-     * caught and swallowed — a faulty hook will never break the request. Set to {@code null} to
-     * clear.
+     * <p>On the blocking API the hook runs on the calling thread; on the async API, on an HTTP
+     * client or timer thread. A hook that throws is caught and swallowed — a faulty hook will never
+     * break the request. Set to {@code null} to clear.
      *
      * @param onRetry the callback, or {@code null} to clear
      * @return this builder
@@ -317,10 +321,10 @@ public final class PoliPageClient {
     }
 
     /**
-     * Registers a callback fired when the SDK is about to surface a terminal failure from the retry
-     * loop (transport failure that wasn't recovered, or abort). Wire-mapped exceptions (4xx) raised
-     * by {@link page.poli.sdk.internal.ErrorParsing} from the facade do not fire this hook —
-     * they're not in scope of "retry exhausted".
+     * Registers a callback fired once with each error a call is about to throw: an API error (after
+     * the retries, when it is retried), {@code network_error}, {@code timeout}, {@code aborted} on
+     * an interrupted blocking call, and {@code DOWNLOAD_FAILED}. A cancelled async future completes
+     * with the JDK's {@code CancellationException} and does not fire it.
      *
      * <p>The hook is invoked synchronously. A hook that throws is caught and swallowed.
      *
@@ -345,9 +349,10 @@ public final class PoliPageClient {
     }
 
     /**
-     * Registers a callback fired after each observed HTTP response. Fires once per attempt whenever
-     * the transport produces a response (success or error status). Transport failures (timeout,
-     * network error) do not fire this hook. A hook that throws is caught and swallowed.
+     * Registers a callback fired after each 2xx API answer, once its body is read: {@code
+     * durationMs} covers the body. Error answers, transport failures (timeout, network error), a
+     * 2xx whose body breaks off, and the presigned-URL download do not fire it. A hook that throws
+     * is caught and swallowed.
      *
      * @param onResponse the callback, or {@code null} to clear
      * @return this builder
@@ -366,8 +371,7 @@ public final class PoliPageClient {
      */
     public PoliPageClient build() {
       if (apiKey == null || apiKey.isBlank()) {
-        throw new page.poli.sdk.exception.PoliPageInvalidOptionsException(
-            "apiKey is required: set it via PoliPageClient.builder().apiKey(...)");
+        throw new page.poli.sdk.exception.PoliPageInvalidOptionsException("apiKey is required");
       }
       PoliPageClientOptions opts =
           new PoliPageClientOptions(
@@ -382,19 +386,20 @@ public final class PoliPageClient {
               onResponse);
       HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
       ObjectMapper mapper = newObjectMapper();
+      Hooks hooks = new Hooks(opts.onRequest(), opts.onResponse(), opts.onRetry(), opts.onError());
       Transport transport =
-          new HttpTransport(opts.baseUrl(), opts.apiKey(), opts.requestTimeout(), http, mapper);
+          new HttpTransport(opts.baseUrl(), opts.apiKey(), opts.requestTimeout(), http);
       RetryLoop retry =
           new RetryLoop(
               opts.maxRetries(),
               opts.retryDelay(),
+              opts.requestTimeout(),
               Backoff.defaultJitter(),
               Sleeper.THREAD,
-              opts.onRetry(),
-              opts.onError(),
-              opts.onRequest(),
-              opts.onResponse());
-      return new PoliPageClient(opts, transport, mapper, retry);
+              mapper,
+              hooks);
+      Download download = new Download(transport, opts.requestTimeout(), hooks);
+      return new PoliPageClient(opts, new Calls(transport, mapper, retry, download));
     }
   }
 }

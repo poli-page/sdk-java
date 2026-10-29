@@ -19,10 +19,10 @@ import org.jspecify.annotations.Nullable;
  *     .build();
  * }</pre>
  *
- * @param attempt zero-based index of the attempt that just failed (so the next attempt is {@code
- *     attempt + 1})
- * @param delay how long the SDK will wait before the next attempt (post-jitter, post-Retry-After
- *     cap)
+ * @param attempt number of the attempt about to start, 1-based like {@link RequestEvent#attempt()}:
+ *     {@code 2} for the first retry
+ * @param delay how long the SDK will wait before that attempt (post-jitter, or the {@code
+ *     Retry-After} value clamped to 30 s)
  * @param statusCode HTTP status code that triggered the retry, or {@code null} for transport
  *     failures with no HTTP response (network / timeout)
  * @param reason short stable string identifying why the retry happened — one of {@code "5xx"},

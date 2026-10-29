@@ -104,7 +104,7 @@ class HookEventsTest {
   }
 
   @Test
-  void onResponse_fires_on_each_retry_attempt(WireMockRuntimeInfo wm) {
+  void onResponse_fires_on_the_2xx_answer_only(WireMockRuntimeInfo wm) {
     stubFor(
         get(urlEqualTo(DOC_PATH))
             .inScenario("retry")
@@ -133,6 +133,7 @@ class HookEventsTest {
 
     client.documents().get("doc_x");
 
-    assertThat(events).extracting(ResponseEvent::status).containsExactly(503, 200);
+    // SDK spec §4.1: onResponse is called on each 2xx response, not on the retried 503.
+    assertThat(events).extracting(ResponseEvent::status).containsExactly(200);
   }
 }
