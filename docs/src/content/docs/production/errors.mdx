@@ -29,14 +29,14 @@ try {
 
 ## SDK-internal codes
 
-These originate inside the SDK before any HTTP call (or in response to a network-layer failure). They are lowercase. `statusCode()` returns `0` because there is no HTTP response.
+These originate inside the SDK before any HTTP call (or in response to a network-layer failure). They are lowercase, except `DOWNLOAD_FAILED`. `statusCode()` returns `0` when there is no HTTP response. The messages are fixed texts, the same in every Poli Page SDK; the JDK exception, when there is one, is `getCause()`.
 
 <ErrorTable errors={[
-  { code: 'invalid_options', when: 'Builder validation failed (missing apiKey, non-absolute baseUrl, etc.).', recovery: 'Fix the builder call. Thrown synchronously by `build()`.' },
-  { code: 'network_error', when: 'TCP/TLS-layer failure reaching the API.', recovery: 'Automatically retried up to maxRetries times.' },
-  { code: 'timeout', when: 'The request did not complete within the configured `requestTimeout`.', recovery: 'Automatically retried up to maxRetries times. Raise `requestTimeout` if it keeps tripping.' },
-  { code: 'aborted', when: 'A blocking call was interrupted, or an async future was cancelled.', recovery: 'Not retryable. Surface to the caller.' },
-  { code: 'download_failed', when: 'The presigned-PDF GET returned non-2xx.', recovery: 'Re-render to get a fresh URL — the presigned URL has a short TTL.' },
+  { code: 'invalid_options', when: 'Builder validation failed. A missing or blank apiKey gives the message `apiKey is required`.', recovery: 'Fix the builder call. Thrown synchronously by `build()`.' },
+  { code: 'network_error', when: 'TCP/TLS-layer failure reaching the API, or a connection closed before or during the answer. The message is `Network request failed`.', recovery: 'Automatically retried up to maxRetries times.' },
+  { code: 'timeout', when: 'An attempt did not complete, body included, within the configured `requestTimeout`. The message is `Request timed out after <ms>ms`.', recovery: 'Automatically retried up to maxRetries times. Raise `requestTimeout` if it keeps tripping.' },
+  { code: 'aborted', when: 'A blocking call was interrupted, during a request, a retry wait or the PDF download. The message is `Request was aborted`. A cancelled async future completes with the JDK\'s `CancellationException` instead.', recovery: 'Not retryable. Surface to the caller.' },
+  { code: 'DOWNLOAD_FAILED', when: 'The presigned-PDF download failed: `Failed to download PDF: HTTP <status>` with the storage status (an expired URL gets 403), or `Failed to download PDF: network error` with status 0 when there was no answer, the connection dropped while the PDF was read, or `requestTimeout` passed.', recovery: 'Not retried. Call `documents().get(id)` for a fresh URL and download again.' },
 ]} />
 
 ## API codes
@@ -52,10 +52,14 @@ Returned by the Poli Page API. Uppercase, SCREAMING_SNAKE_CASE. The SDK forwards
   { code: 'DOCUMENT_NOT_FOUND', when: 'No stored document matches the documentId.', recovery: 'Verify the id.' },
   { code: 'VALIDATION_ERROR', when: 'The `data` map does not satisfy the template schema.', recovery: 'Inspect the template schema in the dashboard.' },
   { code: 'MISSING_DATA', when: 'The request body lacks a required `data` field.', recovery: 'Pass `data(Map.of())` (or with values) on every render call.' },
-  { code: 'QUOTA_EXCEEDED', when: 'You exceeded the monthly quota.', recovery: 'Automatically retried; bump tier for sustained higher throughput.' },
+  { code: 'TEMPLATE_ERROR', when: 'The rendering engine rejected the template or its data (HTTP 400).', recovery: 'Read the message for the failing part of the template.' },
+  { code: 'TEMPLATE_UNSAFE', when: 'The template, a partial or an SVG asset holds an injection attempt (HTTP 400); the message names it.', recovery: 'Not retried. Remove the unsafe content and publish again.' },
+  { code: 'QUOTA_EXCEEDED', when: 'The organization\'s monthly quota is reached (HTTP 429).', recovery: 'Not retried: it lasts until the monthly reset. Upgrade the plan for more renders.' },
+  { code: 'OVERAGE_CAP_EXCEEDED', when: 'The organization reached its overage cap (HTTP 429).', recovery: 'Not retried: it lasts until the monthly reset. Raise the cap in the dashboard.' },
+  { code: 'STORAGE_ACCESS_DENIED', when: 'The organization\'s own storage bucket refuses access (HTTP 502).', recovery: 'Not retried: restore the bucket role, then call again.' },
   { code: 'RATE_LIMIT_EXCEEDED', when: 'You exceeded the request rate limit.', recovery: 'Automatically retried, honouring `Retry-After`.' },
   { code: 'ORGANIZATION_PAYMENT_GRACE', when: 'The organization is in its payment grace period (HTTP 403).', recovery: 'Update the payment method in the dashboard.' },
-  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx.', recovery: 'Automatically retried; contact support if it persists.' },
+  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx. Also the code of an error answer whose body is not JSON, or broke off while it was read, with its real status and the message `HTTP <status>`.', recovery: 'Retried when the status is 5xx or 429; contact support if it persists.' },
 ]} />
 
 The full list of API codes lives in [the reference](../../reference/errors/).
@@ -86,7 +90,7 @@ class Example {
             // ...
         } catch (PoliPageException ex) {
             if (PoliPageErrorCode.QUOTA_EXCEEDED.equals(ex.code())) {
-                // Custom strategy beyond the SDK's built-in retries.
+                // Never retried by the SDK: it lasts until the monthly reset.
                 return;
             }
             throw ex;

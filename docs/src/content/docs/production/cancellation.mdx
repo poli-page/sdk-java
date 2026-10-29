@@ -3,7 +3,7 @@ title: Cancellation
 description: How to cancel in-flight requests with thread interrupts or CompletableFuture.cancel.
 ---
 
-The Java SDK exposes two cancellation idioms — one per facade. Blocking calls honor `Thread.interrupt()`; async calls honor `CompletableFuture.cancel(true)`. Both surface as a `PoliPageException` with `code() == "aborted"`.
+The Java SDK exposes two cancellation idioms — one per facade. Blocking calls honor `Thread.interrupt()`, which surfaces as a `PoliPageException` with `code() == "aborted"` and the message `Request was aborted`. Async calls honor `CompletableFuture.cancel(true)`; the future then completes with the JDK's `CancellationException`, as every cancelled `CompletableFuture` does. Either way the SDK stops at once: the request in flight is cancelled, a wait before a retry ends, and no further request is sent.
 
 ## Blocking facade
 
@@ -28,7 +28,7 @@ try {
 
 ## Async facade
 
-Cancel the returned future with `cancel(true)`. The SDK's async retry loop uses `CompletableFuture.delayedExecutor` for back-off, so cancellation interrupts the next attempt as well.
+Cancel the returned future with `cancel(true)`. The cancellation reaches the stage in flight: the HTTP exchange, the wait before a retry, or the PDF download of `pdf()` / `pdfStream()`.
 
 ```java
 CompletableFuture<byte[]> future = client.renderAsync().pdf(input);
@@ -41,7 +41,7 @@ byte[] pdf = future.get(); // throws CancellationException if cancelled
 
 ## Cancellation vs timeout
 
-`requestTimeout` (the builder option) is a per-attempt deadline enforced inside the JDK's `HttpClient`. Caller cancellation is independent — whichever fires first wins.
+`requestTimeout` (the builder option) is a per-attempt deadline that covers the whole attempt, the answer's body included. Caller cancellation is independent — whichever fires first wins. A timeout is retried; a cancellation never is.
 
 `aborted` errors are **not retried**. The SDK assumes the caller meant it.
 

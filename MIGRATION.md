@@ -6,6 +6,46 @@ This file documents breaking changes between major versions of
 breaking changes ship in major version bumps (in minor bumps while the
 version is `0.x`) and always come with an entry here.
 
+## From 0.10.0 to the next release
+
+The SDK now follows the Poli Page API contract (SDK specification §8, §9).
+
+### 1. Three codes are never retried
+
+`QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED`
+(502) are thrown at once, and `isRetryable()` is `false` for them, for
+`aborted` and for `DOWNLOAD_FAILED`. A job queue that requeues on
+`isRetryable()` stops requeueing them: they last until the monthly reset or
+until the bucket access is restored, so surface them instead.
+
+### 2. `DOWNLOAD_FAILED` is uppercase
+
+```java
+// before
+if ("download_failed".equals(ex.code())) { … }
+// after: use the constant
+if (PoliPageErrorCode.DOWNLOAD_FAILED.equals(ex.code())) { … }
+```
+
+A download that gets no answer, or exceeds `requestTimeout`, is now
+`DOWNLOAD_FAILED` with `statusCode() == 0`, not `network_error` or
+`timeout`. A connection dropped while a `pdfStream()` body is read throws
+`DOWNLOAD_FAILED` from `read()`.
+
+### 3. Messages are fixed texts
+
+Code that parsed `getMessage()` of an SDK error sees `Network request
+failed`, `Request timed out after <ms>ms`, `Request was aborted`, `apiKey is
+required`, `Failed to download PDF: HTTP <status>` and `Failed to download
+PDF: network error`. The JDK exception is `getCause()`.
+
+### 4. Hooks
+
+- `RetryEvent.attempt()` is the attempt about to start: `2` before the first
+  retry (was `0`). Add 2 to an old value to get the new one.
+- `onResponse` fires on 2xx answers only, after the body.
+- `onError` fires with every error a call throws, API errors included.
+
 ## From 0.9.x to 0.10.0
 
 `0.10.0` is the first release of the Java SDK. No `0.9.x` Java artifact

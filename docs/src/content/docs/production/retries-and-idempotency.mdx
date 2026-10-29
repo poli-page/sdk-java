@@ -3,16 +3,19 @@ title: Retries and idempotency
 description: How the SDK retries transient failures and how render calls stay safe to retry.
 ---
 
-The Poli Page SDK retries transient failures automatically. Every render request carries an auto-generated UUID v4 idempotency key so internal retries never produce duplicate stored documents on the server.
+The Poli Page SDK retries transient failures automatically. Every `POST` carries an auto-generated UUID v4 `Idempotency-Key`, the same on every retry of one call. The API does not deduplicate on it: see [Idempotency](#idempotency).
 
 ## Default retry policy
 
-- `network_error`, `timeout`, 5xx responses (including `503 PUBLISH_IN_PROGRESS`), and 429 (`QUOTA_EXCEEDED`, `RATE_LIMIT_EXCEEDED`) are retried.
-- Up to `maxRetries` attempts (default `2` — three total attempts).
-- Exponential backoff starting at `retryDelay` (default `Duration.ofMillis(500)`), doubling each attempt with jitter in `[0.5, 1.5)`.
-- The server's `Retry-After` response header overrides the local back-off, capped at 30 seconds.
-- 4xx responses (other than 429) are never retried.
-- Interrupts and async cancellations are never retried.
+- `network_error`, `timeout`, 5xx responses (including `503 PUBLISH_IN_PROGRESS`) and 429 (`RATE_LIMIT_EXCEEDED`) are retried.
+- `QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502) are never retried, even with a `Retry-After` header: waiting cannot fix them. `isRetryable()` is `false` for them.
+- A call makes at most `1 + maxRetries` attempts (default `2` — three total attempts); the last error is thrown.
+- Before retry `n` (1-based) the SDK waits `retryDelay × 2^(n-1) × j`, with `retryDelay` defaulting to `Duration.ofMillis(500)` and `j` a random factor in `[0.5, 1.5)`. The wait is never shorter than that.
+- A `Retry-After` header (integer seconds or HTTP-date) replaces it, without jitter, clamped to 0–30 seconds. `Retry-After-Ms` is ignored.
+- 4xx responses (other than 429) are never retried, nor is the presigned-URL download.
+- `requestTimeout` bounds each attempt as a whole, the answer's body included.
+- Interrupts and async cancellations are never retried: an interrupted blocking call throws `aborted` at once, during an attempt or a wait; a cancelled future stops the attempt in flight or the wait.
+- The SDK's retries are the only resends. The JDK HTTP client would send a `GET` again by itself when a connection closes before any answer (any method with `-Djdk.httpclient.enableAllMethodRetry=true`); the SDK refuses that, so the failure is a `network_error` it retries itself, counted by `maxRetries` and reported to `onRequest` and `onRetry`.
 
 ## Disabling retries
 
@@ -27,13 +30,15 @@ PoliPageClient client = PoliPageClient.builder()
 
 ## Idempotency
 
-Every `POST /v1/render` and `POST /v1/documents/{id}/thumbnails` request includes a `Idempotency-Key` header — a fresh UUID v4 per call. The API treats requests with the same key as the same operation, so retries from inside the SDK never create duplicate stored documents.
+Every `POST /v1/render` and `POST /v1/documents/{id}/thumbnails` request includes an `Idempotency-Key` header — a UUID v4 generated once per call and sent unchanged on each of its retries. `GET`, `DELETE` and the presigned-URL download carry none.
 
-To choose the key of a render yourself, for example to make your own retries of the same business operation idempotent, set it on the input: `RenderInput.builder().idempotencyKey("inv-INV-001")`. If you orchestrate your own retries on top of the SDK, keep your retry budget aware of the SDK's internal one.
+The API does not deduplicate on this key, and every `POST /v1/render` stores a new document. A retried render can therefore store a second document when the first attempt was stored but its answer was lost: a 5xx raised after the document was stored, a `timeout` that fired while the API was still rendering, a `network_error` after the request reached the API, or a 2xx answer cut mid-body. A `503 PUBLISH_IN_PROGRESS` is raised before any render work, so retrying it never duplicates. If a duplicate document is a problem for you, set `maxRetries(0)` and decide yourself when to render again.
+
+To choose the key yourself, set it on the input: `RenderInput.builder().idempotencyKey("inv-INV-001")` (or `ThumbnailOptions.builder().idempotencyKey(...)`).
 
 ## Observing retries
 
-Register an `onRetry` hook on the builder to feed metrics or structured logs:
+Register an `onRetry` hook on the builder to feed metrics or structured logs. `event.attempt()` is the attempt about to start (`2` for the first retry), `event.delay()` the wait before it and `event.reason()` one of `5xx`, `rate_limit`, `timeout`, `network_error`:
 
 ```java
 PoliPageClient client = PoliPageClient.builder()

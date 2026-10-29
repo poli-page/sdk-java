@@ -7,6 +7,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Conformance with the Poli Page API contract v1.2.0
+([poli-page/api-contract](https://github.com/poli-page/api-contract)). See
+[MIGRATION.md](MIGRATION.md#from-0100-to-the-next-release).
+
+### Changed
+
+- **BREAKING**: `QUOTA_EXCEEDED` and `OVERAGE_CAP_EXCEEDED` (429) and
+  `STORAGE_ACCESS_DENIED` (502) are no longer retried, even with a
+  `Retry-After` header, and `isRetryable()` now returns `false` for them (it
+  returned `true` for any 429 or 5xx). They last until the monthly reset or
+  until the bucket access is restored. `RATE_LIMIT_EXCEEDED` and every other
+  429 and 5xx are still retried. The retry loop and `isRetryable()` now
+  follow one rule.
+- **BREAKING**: `isRetryable()` is `false` for `DOWNLOAD_FAILED` whatever the
+  storage status (it was `true` for a storage 5xx or 429), and for `aborted`.
+  The presigned-URL download is never retried.
+- **BREAKING**: `PoliPageErrorCode.DOWNLOAD_FAILED` is `"DOWNLOAD_FAILED"`
+  (was `"download_failed"`), the SDK specification's code. Code that compares
+  `ex.code()` with the constant is unaffected; code that compares with the
+  literal string must change.
+- **BREAKING**: SDK error messages are the SDK specification's exact texts:
+  - `network_error`: `Network request failed` (was `<METHOD> <path> failed:
+    <JDK message>`);
+  - `timeout`: `Request timed out after <ms>ms`, the configured
+    `requestTimeout` (was `<METHOD> <path> timed out: <JDK message>`);
+  - `aborted`: `Request was aborted` (was `<METHOD> <path> was interrupted`);
+  - `invalid_options` for a missing or blank key: `apiKey is required`;
+  - `DOWNLOAD_FAILED`: `Failed to download PDF: HTTP <status>` (was `Failed
+    to download PDF from presigned URL: HTTP <status>`), and `Failed to
+    download PDF: network error` when the download gets no answer.
+  The JDK exception stays available as `getCause()`.
+- **BREAKING**: A network failure or a timeout of the presigned-URL download
+  (`render().pdf`, `pdfStream`, `downloadPdf`) is `DOWNLOAD_FAILED` with
+  status `0` (was `network_error` or `timeout` from `render().pdf`, and
+  `timeout` from `downloadPdf`).
+- **BREAKING**: `RetryEvent.attempt()` is the number of the attempt about to
+  start, 1-based like `RequestEvent.attempt()`: `2` for the first retry (was
+  the 0-based index of the attempt that failed, `0`).
+- **BREAKING**: `onResponse` fires on 2xx answers only, once the body is read,
+  and `durationMs` covers the body (it fired on every answer, error statuses
+  included, before the body was read).
+- **BREAKING**: `onError` fires once with every error a call throws: API
+  errors, `network_error`, `timeout`, `aborted` and `DOWNLOAD_FAILED` (it
+  fired only on exhausted transport failures).
+- A `Retry-After` header must be digits (delta-seconds) or an HTTP-date. A
+  negative or fractional value (`-1`, `1.5`) is now ignored and the backoff
+  applies (a negative value meant "retry at once"); a value too large for a
+  `long` clamps to the 30 s cap.
+- `requestTimeout` bounds each attempt as a whole: connecting, the headers and
+  the body. The JDK's request timeout stops once the headers arrive, so a body
+  that kept dripping could outlive it; it now fails the attempt with
+  `timeout`, retried. It also bounds the presigned-URL download of
+  `render().pdf` and `downloadPdf`.
+
+### Fixed
+
+- No hidden resends: `java.net.http` sends a `GET` again by itself (once up
+  to JDK 21, up to 4 more times on later JDKs) when the connection closes
+  before any answer, and any method, `POST /v1/render` included, when the JVM
+  runs with `-Djdk.httpclient.enableAllMethodRetry=true`. The SDK now refuses
+  those resends: the failure is a `network_error` that the SDK retries itself,
+  counted by `maxRetries`, reported to `onRequest` and `onRetry`, and the
+  presigned-URL download is sent once. Up to JDK 21 a `GET` and a `DELETE` now
+  carry `Content-Length: 0`, as `HttpRequest.Builder.GET()` did up to JDK 18.
+- The body of every API answer is read inside its attempt. A 2xx body cut
+  mid-way is a `network_error` and a stalled one a `timeout`, both retried; an
+  error answer whose body is cut or stalls keeps its status and request id
+  (`INTERNAL_ERROR`, `HTTP <status>`, the read failure as `getCause()`) and is
+  retried according to its status. A render whose 2xx answer is cut was
+  already stored by the API; its retry can store a second document.
+- A dropped connection while a `pdfStream()` body is read raises
+  `DOWNLOAD_FAILED` (unchecked) from `read()`, not a raw `IOException`;
+  `renderToFile` therefore throws `DOWNLOAD_FAILED` rather than `io_error`
+  in that case.
+- Cancelling a future of `renderAsync()` or `documentsAsync()` now cancels the
+  attempt in flight, the wait before a retry or the download; no further
+  request is sent. It used to cancel only the returned future and let the
+  retries go on.
+- A retry wait is never shorter than the delay: the blocking sleep and the
+  async timer wait again for the rest when they wake early.
+- An error answer's `Retry-After` larger than a `long` no longer falls back to
+  the short backoff.
+- Docs: the API does not deduplicate on `Idempotency-Key`. A render retried
+  after a late 5xx, a `timeout` or a `network_error` can store a second
+  document; the retries page and the README no longer say otherwise.
+
+### Added
+
+- Known error code `TEMPLATE_UNSAFE` (400: the template, a partial or an SVG
+  asset holds an injection attempt; its message names it; not retried).
+- Exception constructors that take a cause: `PoliPageAuthException`,
+  `PoliPageValidationException`, `PoliPageNotFoundException`,
+  `PoliPageGoneException` and `PoliPageRateLimitException`.
+- The API contract tests: `ContractTest` runs every SDK case of the API
+  contract against a local mock server, on the blocking and the async facade.
+  CI pins the contract by commit (`poli-page/api-contract` action) and
+  Dependabot proposes each new version. Run it locally with
+  `POLI_CONTRACT=<path to contract.json> ./mvnw test`.
+
 ## [0.10.0] - 2026-10-26
 
 First release of the Java SDK, on the environments contract: an API key

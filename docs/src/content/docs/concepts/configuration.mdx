@@ -9,15 +9,15 @@ The `PoliPageClient.Builder` accepts fluent setters for every option. Only `apiK
 
 - `apiKey(String)` (required) — an API key of one environment, `pp_{env}_…` (e.g. `pp_sandbox_…`). See [authentication](../authentication/).
 - `baseUrl(URI)` — override the API endpoint. Defaults to `https://api.poli.page`.
-- `requestTimeout(Duration)` — per-request timeout. Defaults to `Duration.ofSeconds(60)`.
+- `requestTimeout(Duration)` — per-attempt timeout, covering connecting, the answer's headers and its body. Defaults to `Duration.ofSeconds(60)`. Also bounds the presigned-URL download.
 - `maxRetries(int)` — maximum retry attempts for retryable errors. Defaults to `2` (three total attempts).
-- `retryDelay(Duration)` — initial retry backoff. Defaults to `Duration.ofMillis(500)`. Doubles each attempt with jitter.
-- `onRetry(Consumer<RetryEvent>)` — fired just before each retry sleep. Use for metrics, traces, structured logs.
-- `onError(Consumer<Throwable>)` — fired when the SDK is about to surface a terminal transport failure of an API call.
+- `retryDelay(Duration)` — initial retry backoff. Defaults to `Duration.ofMillis(500)`. Doubles each attempt with jitter; a `Retry-After` header replaces it.
+- `onRetry(Consumer<RetryEvent>)` — fired just before each wait between attempts, with the attempt about to start (`2` for the first retry). Use for metrics, traces, structured logs.
+- `onError(Consumer<Throwable>)` — fired once with each error a call is about to throw.
 - `onRequest(Consumer<RequestEvent>)` — fired before each API attempt, retries included (`method`, `url`, `attempt`).
-- `onResponse(Consumer<ResponseEvent>)` — fired after each API response (`status`, `requestId`, `durationMs`).
+- `onResponse(Consumer<ResponseEvent>)` — fired after each 2xx API answer, once its body is read (`status`, `requestId`, `durationMs`).
 
-The four hooks cover calls to the Poli Page API only. The PDF download from the presigned URL (`render().pdf`, `render().pdfStream`, `renderToFile`, `documents().downloadPdf`) is a single attempt outside the retry loop: no hook fires for it.
+`onRequest`, `onResponse` and `onRetry` cover calls to the Poli Page API only. The PDF download from the presigned URL (`render().pdf`, `render().pdfStream`, `renderToFile`, `documents().downloadPdf`) is a single attempt outside the retry loop: only `onError` fires for it, when it fails.
 
 ## Example
 

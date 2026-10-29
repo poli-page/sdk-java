@@ -248,7 +248,7 @@ Exception hierarchy:
 - `PoliPageValidationException` — 400 / 422. Bad input payload.
 - `PoliPageRateLimitException` — 429. Exposes `retryAfter()`.
 - `PoliPageNetworkException` — DNS / TCP / TLS / timeout. Retryable.
-- `PoliPageDownloadException` — presigned S3 URL fetch failed (commonly URL expiry).
+- `PoliPageDownloadException` — `DOWNLOAD_FAILED`: the presigned-URL download failed (commonly URL expiry: storage status 403), or got no answer (status 0). Never retried.
 - `PoliPageInvalidOptionsException` — the client builder was given invalid options (e.g. no `apiKey`).
 
 `code()` is the API's code verbatim (compare against the constants in `PoliPageErrorCode`); a code the SDK does not know passes through unchanged.
@@ -306,11 +306,11 @@ PoliPageClient.builder()
     .build();
 ```
 
-Hooks are synchronous, optional, and exception-safe — a hook that throws never breaks the request. The events never carry the `Authorization` header. They fire for API calls only, not for the presigned-URL PDF download.
+Hooks are synchronous, optional, and exception-safe — a hook that throws never breaks the request. The events never carry the `Authorization` header. `onRetry`'s `attempt()` is the attempt about to start (`2` for the first retry); `onResponse` fires on 2xx answers, once the body is read; `onError` fires once with each error a call throws. `onRequest`, `onResponse` and `onRetry` fire for API calls only, not for the presigned-URL PDF download.
 
 ## Retries & idempotency
 
-The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backoff is exponential (`retryDelay × 2^N`) with jitter in `[0.5, 1.5)`, capped at the server's `Retry-After` header when provided (max 30s). Every POST sends an auto-generated `Idempotency-Key` (UUID v4); set `idempotencyKey(...)` on the `RenderInput` builder to choose it yourself:
+The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**, except `QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502), which waiting cannot fix: those are thrown at once. Before retry `n` (1-based) the SDK waits `retryDelay × 2^(n-1) × j`, with `j` a random factor in `[0.5, 1.5)`; a `Retry-After` header (integer seconds or HTTP-date, clamped to 30 s) replaces it. `Retry-After-Ms` is ignored. The presigned-URL download is never retried. `requestTimeout` bounds each attempt, the answer's body included. The SDK's retries are the only resends: the JDK HTTP client never sends a request again by itself. Every POST sends an auto-generated `Idempotency-Key` (UUID v4), the same on every retry of that call; set `idempotencyKey(...)` on the `RenderInput` builder to choose it yourself. The API does not deduplicate on it, so a render retried after a late 5xx, a `timeout` or a `network_error` can store a second document.
 
 ```java
 client.render().pdf(RenderInput.builder()
