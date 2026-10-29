@@ -74,10 +74,9 @@ import page.poli.sdk.model.ThumbnailOptions;
  *
  * <p>Each case runs on the blocking facade ({@code client.render()}, {@code client.documents()}),
  * where cancellation is a thread interrupt, and on the async facade ({@code client.renderAsync()},
- * {@code client.documentsAsync()}), where it is {@code cancel(true)} on the returned future. A case
- * with {@code requires: "cancellation"} expects the {@code aborted} error: it runs on the blocking
- * facade only, because a cancelled {@code CompletableFuture} completes with the JDK's {@code
- * CancellationException} by the JDK's own contract.
+ * {@code client.documentsAsync()}), where it is {@code cancel(true)} on the returned future. A
+ * cancelled async call throws the JDK's {@code CancellationException}, whose cause is the SDK's
+ * {@code aborted} error: that cause is the result compared.
  *
  * <p>{@code src/test/resources/contract-skip.json} maps the case ids allowed to fail to the reason.
  * A listed case that passes, or a listed id the contract does not have, fails the run.
@@ -229,6 +228,12 @@ class ContractTest {
         fileProblems.add("normalization " + id + " is applied here but no longer in the contract");
       }
     }
+    for (String id : listed) {
+      if (!NORMALIZATIONS.contains(id)) {
+        fileProblems.add(
+            "the contract lists normalization " + id + ", which this test does not apply");
+      }
+    }
     boolean runsCancellation = false;
     for (JsonNode sdk : contract.path("policy").path("cancellationSdks")) {
       runsCancellation |= SDK_NAME.equals(sdk.asText());
@@ -312,9 +317,7 @@ class ContractTest {
     List<String> problems = new ArrayList<>();
     try {
       problems.addAll(prefixed("blocking facade", runCase(raw, Facade.BLOCKING)));
-      if (!needsCancellation) {
-        problems.addAll(prefixed("async facade", runCase(raw, Facade.ASYNC)));
-      }
+      problems.addAll(prefixed("async facade", runCase(raw, Facade.ASYNC)));
     } catch (CaseFormatException e) {
       problems.add("cannot run the case: " + e.getMessage());
     }
@@ -803,9 +806,16 @@ class ContractTest {
     return future.get(CASE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
   }
 
+  /**
+   * The SDK error a call ended with. A cancelled async call throws the JDK's {@code
+   * CancellationException}, whose cause is the SDK's {@code aborted} error.
+   */
   private static Throwable unwrap(Throwable error) {
     Throwable current = error;
-    while ((current instanceof CompletionException || current instanceof ExecutionException)
+    while ((current instanceof CompletionException
+            || current instanceof ExecutionException
+            || (current instanceof java.util.concurrent.CancellationException
+                && current.getCause() instanceof PoliPageException))
         && current.getCause() != null) {
       current = current.getCause();
     }
