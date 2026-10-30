@@ -21,20 +21,20 @@ Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs fr
 <dependency>
     <groupId>page.poli</groupId>
     <artifactId>sdk</artifactId>
-    <version>0.10.0</version>
+    <version>0.11.0</version>
 </dependency>
 ```
 
 Gradle (Kotlin DSL):
 
 ```kotlin
-implementation("page.poli:sdk:0.10.0")
+implementation("page.poli:sdk:0.11.0")
 ```
 
 Gradle (Groovy DSL):
 
 ```groovy
-implementation 'page.poli:sdk:0.10.0'
+implementation 'page.poli:sdk:0.11.0'
 ```
 
 Prereleases (a version with a suffix such as `-RC1`, see [CONTRIBUTING.md](CONTRIBUTING.md#stable-vs-prerelease-channels)) resolve only when you pin that exact version, e.g. `<version>X.Y.Z-RC1</version>` or `page.poli:sdk:X.Y.Z-RC1`.

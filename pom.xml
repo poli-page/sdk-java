@@ -4,7 +4,7 @@
 
   <groupId>page.poli</groupId>
   <artifactId>sdk</artifactId>
-  <version>0.10.0</version>
+  <version>0.11.0</version>
   <packaging>jar</packaging>
 
   <name>Poli Page SDK for Java</name>

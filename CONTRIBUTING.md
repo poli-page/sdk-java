@@ -6,7 +6,7 @@ Thanks for your interest. A few short rules:
 
 We use **TDD**: write a failing test first, then the minimum code to
 pass. Each public method has a corresponding test in
-`src/test/java/`. See `CLAUDE.md` for the full methodology.
+`src/test/java/`.
 
 ## Commit messages
 

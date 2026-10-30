@@ -15,7 +15,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>17</maven.compiler.release>
-    <sdk.version>0.10.0</sdk.version>
+    <sdk.version>0.11.0</sdk.version>
     <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
   </properties>
 
