@@ -6,7 +6,7 @@ This file documents breaking changes between major versions of
 breaking changes ship in major version bumps (in minor bumps while the
 version is `0.x`) and always come with an entry here.
 
-## From 0.10.0 to the next release
+## From 0.10.0 to 0.11.0
 
 The SDK now follows the Poli Page API contract (SDK specification §8, §9).
 

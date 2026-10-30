@@ -98,7 +98,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 Add those lines to `~/.zshrc` to make it stick across shells.
 
-**`Could not find artifact page.poli:sdk:0.10.0`** — the wrapper
+**`Could not find artifact page.poli:sdk:0.11.0`** — the wrapper
 runs `mvn install -DskipTests` first to publish the working-tree SDK to
 your local `~/.m2/`. If that step failed, scroll up in the output to find
 the underlying error (usually a compile or formatting issue in the SDK
