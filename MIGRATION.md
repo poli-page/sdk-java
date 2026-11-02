@@ -6,6 +6,48 @@ This file documents breaking changes between major versions of
 breaking changes ship in major version bumps (in minor bumps while the
 version is `0.x`) and always come with an entry here.
 
+## From 0.11.0 to 0.13.0
+
+The SDK now follows the Poli Page API contract v0.13.0, and its version
+follows the API's major.minor: there is no Java `0.12.x`.
+
+### 1. `invalid_response` has a fixed message, and answers 502
+
+A 2xx answer whose body is not JSON throws `invalid_response` with the
+message `Invalid response: HTTP <status> body is not JSON`. Code that matched
+the old `Failed to parse …` text must use the code instead:
+
+```java
+if (PoliPageErrorCode.INVALID_RESPONSE.equals(ex.code())) { … }
+```
+
+`statusCode()` is still the 2xx, but `toPayload().status()` is now `502`. An
+integration that answered `toPayload()` as its HTTP body now answers 502,
+not a 2xx error.
+
+### 2. The download timeout has its own message
+
+A presigned-URL download that passes `requestTimeout` throws
+`DOWNLOAD_FAILED` with `Failed to download PDF: timeout` (it was `Failed to
+download PDF: network error`). Both have `statusCode() == 0` and neither is
+retried.
+
+### 3. `pdfStream()` and `renderToFile` have an idle timeout
+
+A read of the `pdfStream()` body that waits more than `requestTimeout` for
+the next bytes throws `DOWNLOAD_FAILED` (`Failed to download PDF: timeout`)
+instead of blocking until the connection closes. `renderToFile` and
+`renderToFileAsync` read the same stream, so a stalled download fails there
+too, and the target file is left as it was. The time your code spends
+between two reads is not counted.
+
+### 4. `io_error` messages carry the JDK's reason
+
+`renderToFile` failures read `Failed to write PDF: <reason>`, the JDK
+exception's own message, which may name the temporary file next to the
+target rather than the target. Use `getCause()` for the
+`IOException` itself.
+
 ## From 0.10.0 to 0.11.0
 
 The SDK now follows the Poli Page API contract (SDK specification §8, §9).
