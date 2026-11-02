@@ -59,6 +59,8 @@ To skip integration tests on push (the default), simply run without
 
 ## Releasing
 
+How versions are numbered is in [RELEASING.md](RELEASING.md).
+
 Releases are **tag-driven** and publish to Maven Central through the
 Sonatype Central Portal ([`release.yml`](.github/workflows/release.yml)).
 A tag alone never publishes: the publish job waits for a maintainer to
@@ -67,8 +69,11 @@ are immutable — a version can never be deleted or replaced.
 
 1. Bump `<version>` in `pom.xml`.
 2. Move `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md`.
-3. If a MAJOR bump, add a section to `MIGRATION.md`.
+3. If the release breaks callers (a major, or a minor while on `0.x`), add
+   a section to `MIGRATION.md`.
 4. Merge `chore(release): vX.Y.Z` to `main` and wait for CI to go green.
+   Check that the pinned API contract has the release's major.minor:
+   `./scripts/check-contract-version.sh X.Y.Z`.
 5. Optional local dry run (needs the release GPG key): build the signed
    bundle without uploading anything:
    ```bash
@@ -78,9 +83,10 @@ are immutable — a version can never be deleted or replaced.
    Add `-Djapicmp.skip=true` only if nothing is on Central yet.
 6. Tag the merge commit and push the tag:
    `git tag vX.Y.Z <sha> && git push origin vX.Y.Z`.
-7. The `verify` job checks that the tag matches `pom.xml`, runs the
-   full build and the unsigned release-profile build (sources + javadoc
-   JARs, japicmp against the previous release on Central).
+7. The `verify` job checks that the tag matches `pom.xml` and that its
+   major.minor is the pinned API contract's, then runs the full build and
+   the unsigned release-profile build (sources + javadoc JARs, japicmp
+   against the previous release on Central).
 8. Approve the `publish` job in the Actions UI. It signs, uploads to the
    Central Portal, auto-publishes, waits until the deployment is
    PUBLISHED, then creates the GitHub Release from the `CHANGELOG.md`

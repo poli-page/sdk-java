@@ -3,8 +3,9 @@ name: Release
 # Tag-driven publish to Maven Central through the Sonatype Central Portal.
 #
 #   bump pom.xml <version> + CHANGELOG on main → CI green → push tag vX.Y.Z
-#     → verify job (asserts tag == pom.xml version, full build, unsigned
-#       release-profile build: sources + javadoc jars, japicmp)
+#     → verify job (asserts tag == pom.xml version, and the tag's major.minor
+#       == the pinned API contract's; full build, unsigned release-profile
+#       build: sources + javadoc jars, japicmp)
 #     → publish job PAUSES on the `maven-central-release` environment for
 #       manual approval
 #     → on approval: sign, upload, auto-publish, wait until PUBLISHED,
@@ -63,6 +64,13 @@ jobs:
           echo "version=${POM_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Releasing ${TAG} (pom.xml = ${POM_VERSION})"
 
+      # The SDK shares its major.minor with the Poli Page API: a release X.Y.z
+      # must pass the API contract X.Y. The script reads the contract commit
+      # the workflows pin and requires a stable contract tag vX.Y.Z on it with
+      # the tag's major.minor.
+      - name: Pinned API contract matches the tag's major.minor
+        run: ./scripts/check-contract-version.sh "${GITHUB_REF_NAME}"
+
       # japicmp diffs the public API against the latest release on Central.
       # Before the first release there is nothing to diff against, so skip it
       # only while page.poli:sdk has no metadata on Central.
@@ -86,7 +94,7 @@ jobs:
       # The tagged commit's tests run the API contract too.
       - name: API contract
         id: contract
-        uses: poli-page/api-contract@1f705b3ce3e15ff56e2f7b8249c1a2983af2312c # v1.3.0
+        uses: poli-page/api-contract@1f705b3ce3e15ff56e2f7b8249c1a2983af2312c # v0.13.0
 
       - name: Test + verify
         env:
