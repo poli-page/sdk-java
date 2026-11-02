@@ -138,14 +138,16 @@ public final class PoliPageClient {
    * @param input the render input — non-null
    * @param path destination file path — non-null
    * @throws PoliPageException on render failure, a failed download ({@code DOWNLOAD_FAILED}, also
-   *     when the connection drops while the PDF is read) or local file-write failure (code {@code
-   *     "io_error"})
+   *     when the connection drops while the PDF is read, or when no bytes arrive for the client's
+   *     timeout) or local file-write failure (code {@code "io_error"}, message {@code Failed to
+   *     write PDF: <reason>} with the JDK's own text, the {@link IOException} as cause; never
+   *     retried)
    */
   public void renderToFile(RenderInput input, Path path) {
     try (InputStream stream = render.pdfStream(input)) {
       writeFile(stream, path, () -> false);
     } catch (IOException e) {
-      throw calls.failed(ioError(path, e));
+      throw calls.failed(ioError(e));
     }
   }
 
@@ -181,7 +183,7 @@ public final class PoliPageClient {
                 if (e instanceof RuntimeException runtime) {
                   throw runtime;
                 }
-                throw calls.failed(ioError(path, (IOException) e));
+                throw calls.failed(ioError((IOException) e));
               }
               return null;
             });
@@ -223,14 +225,16 @@ public final class PoliPageClient {
   }
 
   /**
-   * The {@code io_error} of a failed write. It names the target; the JDK exception, which may name
-   * the temporary file, is the cause.
+   * The {@code io_error} of a failed write: {@code Failed to write PDF: <reason>}, where the reason
+   * is the JDK exception's own message, unchanged (its class name when it has none). The JDK
+   * exception is the cause.
    */
-  private static PoliPageException ioError(Path path, IOException e) {
+  private static PoliPageException ioError(IOException e) {
+    String reason = e.getMessage();
     return new PoliPageException(
-        "io_error",
+        PoliPageErrorCode.IO_ERROR,
         0,
-        "Failed to write PDF to " + path + ": " + e.getClass().getSimpleName(),
+        "Failed to write PDF: " + (reason != null ? reason : e.getClass().getName()),
         null,
         e);
   }

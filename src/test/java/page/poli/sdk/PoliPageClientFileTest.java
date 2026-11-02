@@ -14,10 +14,15 @@ import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import page.poli.sdk.exception.PoliPageException;
@@ -132,8 +137,46 @@ class PoliPageClientFileTest {
               PoliPageException ex = (PoliPageException) t;
               assertThat(ex.code()).isEqualTo("io_error");
               assertThat(ex.statusCode()).isZero();
+              assertThat(ex.toPayload().status()).isNull();
+              assertThat(ex.isRetryable()).isFalse();
               assertThat(ex.getCause()).isInstanceOf(IOException.class);
+              assertThat(ex.getMessage())
+                  .isEqualTo("Failed to write PDF: " + ex.getCause().getMessage());
             });
+    assertThat(bogusPath).doesNotExist();
+  }
+
+  @Test
+  void renderToFile_io_error_leaves_an_existing_target_untouched(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws IOException {
+    Assumptions.assumeTrue(
+        FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+        "needs POSIX permissions");
+    stubHappyPath(wm);
+    Path dir = Files.createDirectory(tmp.resolve("read-only"));
+    Path target = dir.resolve("invoice.pdf");
+    byte[] before = "previous PDF".getBytes(StandardCharsets.UTF_8);
+    Files.write(target, before);
+    Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("r-xr-xr-x"));
+    try {
+      Assumptions.assumeFalse(Files.isWritable(dir), "permissions are not enforced (root?)");
+
+      assertThatThrownBy(() -> newClient(wm).renderToFile(simpleInput(), target))
+          .isInstanceOfSatisfying(
+              PoliPageException.class,
+              ex -> {
+                assertThat(ex.code()).isEqualTo("io_error");
+                assertThat(ex.getCause()).isInstanceOf(AccessDeniedException.class);
+                assertThat(ex.getMessage())
+                    .isEqualTo("Failed to write PDF: " + ex.getCause().getMessage());
+              });
+      assertThat(Files.readAllBytes(target)).isEqualTo(before);
+      try (Stream<Path> files = Files.list(dir)) {
+        assertThat(files).containsExactly(target);
+      }
+    } finally {
+      Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+    }
   }
 
   @Test

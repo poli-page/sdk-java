@@ -101,15 +101,18 @@ public sealed class PoliPageException extends RuntimeException
    * Whether the SDK considers this error retryable: a network failure, a timeout, a {@code 5xx} or
    * a {@code 429}, except {@code QUOTA_EXCEEDED} and {@code OVERAGE_CAP_EXCEEDED} (they last until
    * the monthly reset) and {@code STORAGE_ACCESS_DENIED} (it lasts until the bucket access is
-   * restored). Never {@code aborted}, and never {@code DOWNLOAD_FAILED}, whatever the storage
-   * status: the presigned-URL download is not retried. This is the rule the SDK's own retry loop
-   * follows, so it has already retried a retryable error up to {@code maxRetries}; the predicate is
-   * mainly useful when an outer queue / scheduler decides whether to re-enqueue.
+   * restored). Never {@code aborted}, {@code invalid_response} or {@code io_error}, and never
+   * {@code DOWNLOAD_FAILED}, whatever the storage status: the presigned-URL download is not
+   * retried. This is the rule the SDK's own retry loop follows, so it has already retried a
+   * retryable error up to {@code maxRetries}; the predicate is mainly useful when an outer queue /
+   * scheduler decides whether to re-enqueue.
    *
    * @return {@code true} if the failure class is generally retryable
    */
   public boolean isRetryable() {
     if (PoliPageErrorCode.ABORTED.equals(code)
+        || PoliPageErrorCode.INVALID_RESPONSE.equals(code)
+        || PoliPageErrorCode.IO_ERROR.equals(code)
         || PoliPageErrorCode.DOWNLOAD_FAILED.equals(code)
         || PoliPageErrorCode.QUOTA_EXCEEDED.equals(code)
         || PoliPageErrorCode.OVERAGE_CAP_EXCEEDED.equals(code)
@@ -158,10 +161,12 @@ public sealed class PoliPageException extends RuntimeException
   }
 
   /**
-   * Returns the canonical wire payload for framework integrations. Status surfaces the API HTTP
-   * status when known, 503 for network failures, 504 for timeouts, or {@code null} when no status
-   * applies. The {@link #statusCode()} accessor stays {@code 0} for transport failures — only the
-   * payload surfaces 503/504, so callers that read {@code statusCode()} directly are unaffected.
+   * Returns the canonical wire payload for framework integrations: exactly the four fields {@code
+   * code}, {@code message}, {@code status} and {@code requestId}, which a JSON mapper writes under
+   * those names. Status surfaces the API HTTP status when known, 503 for network failures, 504 for
+   * timeouts, 502 for {@code invalid_response}, or {@code null} when no status applies. The {@link
+   * #statusCode()} accessor is unaffected: it stays {@code 0} for transport failures, and keeps the
+   * real 2xx of an {@code invalid_response}, which an integration must not answer an error with.
    *
    * @return the canonical wire payload
    */
@@ -171,12 +176,15 @@ public sealed class PoliPageException extends RuntimeException
 
   /**
    * Hook overridden by {@link PoliPageNetworkException} (503 for network errors, 504 for timeouts
-   * via the {@code code()} discriminator). Default: the API status when present, otherwise {@code
-   * null}.
+   * via the {@code code()} discriminator). Default: {@code 502} for {@code invalid_response}, the
+   * API status when present, otherwise {@code null}.
    *
    * @return the wire status surfaced by {@link #toPayload()}, or {@code null}
    */
   protected @Nullable Integer payloadStatus() {
+    if (PoliPageErrorCode.INVALID_RESPONSE.equals(code)) {
+      return 502;
+    }
     return statusCode != 0 ? statusCode : null;
   }
 }

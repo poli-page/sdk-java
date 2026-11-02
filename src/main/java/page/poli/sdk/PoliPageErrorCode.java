@@ -211,5 +211,18 @@ public final class PoliPageErrorCode {
    */
   public static final String DOWNLOAD_FAILED = "DOWNLOAD_FAILED";
 
+  /**
+   * A 2xx API answer whose body is not JSON, from a method that expects JSON: something between the
+   * SDK and the API (a proxy, a captive portal) answered. The error keeps the real 2xx status and
+   * the {@code x-request-id}; {@code toPayload()} answers {@code 502}. Never retried.
+   */
+  public static final String INVALID_RESPONSE = "invalid_response";
+
+  /**
+   * {@code renderToFile} could not write the file. No HTTP status; the JDK's {@link
+   * java.io.IOException} is the cause, and the target file is left as it was. Never retried.
+   */
+  public static final String IO_ERROR = "io_error";
+
   private PoliPageErrorCode() {}
 }

@@ -124,8 +124,9 @@ public final class Documents {
    *
    * <p>The presigned download is never retried, and sends no {@code Authorization} header. A
    * non-2xx answer raises {@code DOWNLOAD_FAILED} with the storage status ({@code 403} for an
-   * expired URL); a network failure or the client's timeout raise {@code DOWNLOAD_FAILED} without
-   * one.
+   * expired URL); a network failure raises {@code DOWNLOAD_FAILED} without one ({@code Failed to
+   * download PDF: network error}). The client's timeout bounds the whole download: past it, {@code
+   * DOWNLOAD_FAILED} without a status, {@code Failed to download PDF: timeout}.
    *
    * @param descriptor the descriptor returned by {@link #get(String)} or {@link
    *     page.poli.sdk.Render#document(page.poli.sdk.input.RenderInput)}

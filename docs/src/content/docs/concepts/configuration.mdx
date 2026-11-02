@@ -9,7 +9,7 @@ The `PoliPageClient.Builder` accepts fluent setters for every option. Only `apiK
 
 - `apiKey(String)` (required) — an API key of one environment, `pp_{env}_…` (e.g. `pp_sandbox_…`). See [authentication](../authentication/).
 - `baseUrl(URI)` — override the API endpoint. Defaults to `https://api.poli.page`.
-- `requestTimeout(Duration)` — per-attempt timeout, covering connecting, the answer's headers and its body. Defaults to `Duration.ofSeconds(60)`. Also bounds the presigned-URL download.
+- `requestTimeout(Duration)` — per-attempt timeout, covering connecting, the answer's headers and its body. Defaults to `Duration.ofSeconds(60)`. Also bounds the presigned-URL download: the whole download for `render().pdf` and `documents().downloadPdf`, and each wait for bytes for `render().pdfStream` and `renderToFile`. Past it the download fails with `DOWNLOAD_FAILED`, `Failed to download PDF: timeout`.
 - `maxRetries(int)` — maximum retry attempts for retryable errors. Defaults to `2` (three total attempts).
 - `retryDelay(Duration)` — initial retry backoff. Defaults to `Duration.ofMillis(500)`. Doubles each attempt with jitter; a `Retry-After` header replaces it.
 - `onRetry(Consumer<RetryEvent>)` — fired just before each wait between attempts, with the attempt about to start (`2` for the first retry). Use for metrics, traces, structured logs.
