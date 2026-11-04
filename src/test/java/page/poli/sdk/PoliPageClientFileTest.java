@@ -19,9 +19,12 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.FileSystemException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
+import java.nio.file.LinkOption;
+import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Stream;
@@ -127,28 +130,72 @@ class PoliPageClientFileTest {
   }
 
   @Test
-  void renderToFile_wraps_local_io_failure_with_io_error_code(
-      WireMockRuntimeInfo wm, @TempDir Path tmp) {
+  void renderToFile_creates_missing_parent_directories(WireMockRuntimeInfo wm, @TempDir Path tmp)
+      throws IOException {
     stubHappyPath(wm);
-    // Writing into a non-existent directory triggers IOException from Files.copy.
-    Path bogusPath = tmp.resolve("no/such/dir/out.pdf");
+    Path target = tmp.resolve("no/such/dir/out.pdf");
 
-    assertThatThrownBy(() -> newClient(wm).renderToFile(simpleInput(), bogusPath))
-        .isInstanceOf(PoliPageException.class)
-        .satisfies(
-            t -> {
-              PoliPageException ex = (PoliPageException) t;
-              assertThat(ex.code()).isEqualTo("io_error");
-              assertThat(ex.statusCode()).isZero();
-              assertThat(ex.toPayload().status()).isNull();
-              assertThat(ex.isRetryable()).isFalse();
-              assertThat(ex.getCause()).isInstanceOf(IOException.class);
-              // The target, not the temporary file the JDK names, with the OS reason restored.
-              assertThat(ex.getCause()).isInstanceOf(NoSuchFileException.class);
-              assertThat(ex.getMessage())
-                  .isEqualTo("Failed to write PDF: " + bogusPath + ": No such file or directory");
-            });
-    assertThat(bogusPath).doesNotExist();
+    newClient(wm).renderToFile(simpleInput(), target);
+
+    assertThat(Files.readAllBytes(target)).isEqualTo(PDF_BYTES);
+  }
+
+  @Test
+  void a_parent_that_is_a_file_is_io_error_before_any_request(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws IOException {
+    stubHappyPath(wm);
+    Path file = Files.writeString(tmp.resolve("not-a-dir"), "x");
+    Path direct = file.resolve("out.pdf");
+    Path deeper = file.resolve("sub/out.pdf");
+    PoliPageClient client = newClient(wm);
+
+    for (Path target : List.of(direct, deeper)) {
+      assertThatThrownBy(() -> client.renderToFile(simpleInput(), target))
+          .isInstanceOfSatisfying(
+              PoliPageException.class,
+              ex -> {
+                assertThat(ex.code()).isEqualTo("io_error");
+                assertThat(ex.statusCode()).isZero();
+                assertThat(ex.toPayload().status()).isNull();
+                assertThat(ex.isRetryable()).isFalse();
+                assertThat(ex.getCause()).isInstanceOf(NotDirectoryException.class);
+                assertThat(ex.getMessage())
+                    .isEqualTo("Failed to write PDF: " + target + ": Not a directory");
+              });
+    }
+    assertThat(file).hasContent("x");
+    WireMock.verify(0, WireMock.postRequestedFor(urlEqualTo("/v1/render")));
+  }
+
+  @Test
+  void a_new_file_in_a_read_only_directory_is_io_error_before_any_request(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws IOException {
+    Assumptions.assumeTrue(
+        FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+        "needs POSIX permissions");
+    stubHappyPath(wm);
+    Path dir = Files.createDirectory(tmp.resolve("read-only"));
+    Path target = dir.resolve("invoice.pdf");
+    Path nested = dir.resolve("sub/invoice.pdf");
+    Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("r-xr-xr-x"));
+    try {
+      Assumptions.assumeFalse(Files.isWritable(dir), "permissions are not enforced (root?)");
+
+      for (Path path : List.of(target, nested)) {
+        assertThatThrownBy(() -> newClient(wm).renderToFile(simpleInput(), path))
+            .isInstanceOfSatisfying(
+                PoliPageException.class,
+                ex ->
+                    assertThat(ex.getMessage())
+                        .isEqualTo("Failed to write PDF: " + path + ": Permission denied"));
+      }
+      try (Stream<Path> files = Files.list(dir)) {
+        assertThat(files).isEmpty();
+      }
+      WireMock.verify(0, WireMock.postRequestedFor(urlEqualTo("/v1/render")));
+    } finally {
+      Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+    }
   }
 
   @Test
@@ -179,6 +226,7 @@ class PoliPageClientFileTest {
       try (Stream<Path> files = Files.list(dir)) {
         assertThat(files).containsExactly(target);
       }
+      WireMock.verify(0, WireMock.postRequestedFor(urlEqualTo("/v1/render")));
     } finally {
       Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
     }
@@ -198,9 +246,46 @@ class PoliPageClientFileTest {
               assertThat(ex.code()).isEqualTo("io_error");
               assertThat(ex.getCause()).isInstanceOf(FileSystemException.class);
               assertThat(ex.getMessage())
-                  .isEqualTo("Failed to write PDF: " + target + ": Is a directory");
+                  .isEqualTo("Failed to write PDF: " + target + ": not a regular file");
             });
     assertThat(target.resolve("keep.txt")).hasContent("kept");
+    WireMock.verify(0, WireMock.postRequestedFor(urlEqualTo("/v1/render")));
+  }
+
+  @Test
+  void renderToFile_onto_a_fifo_is_io_error_before_any_request_and_keeps_the_fifo(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws Exception {
+    Assumptions.assumeTrue(
+        FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+        "FIFOs are POSIX");
+    stubHappyPath(wm);
+    Path fifo = tmp.resolve("pipe.pdf");
+    Process mkfifo;
+    try {
+      mkfifo = new ProcessBuilder("mkfifo", fifo.toString()).start();
+    } catch (IOException noMkfifo) {
+      Assumptions.abort("mkfifo is not available");
+      return;
+    }
+    Assumptions.assumeTrue(mkfifo.waitFor() == 0, "mkfifo failed");
+    PoliPageClient client = newClient(wm);
+
+    // Opening a FIFO with no reader would block: the check reads attributes only, so this returns.
+    assertThatThrownBy(() -> client.renderToFile(simpleInput(), fifo))
+        .isInstanceOfSatisfying(
+            PoliPageException.class,
+            ex -> {
+              assertThat(ex.code()).isEqualTo("io_error");
+              assertThat(ex.getMessage())
+                  .isEqualTo("Failed to write PDF: " + fifo + ": not a regular file");
+            });
+    assertThatThrownBy(() -> client.renderToFileAsync(simpleInput(), fifo).join())
+        .cause()
+        .isInstanceOfSatisfying(
+            PoliPageException.class, ex -> assertThat(ex.code()).isEqualTo("io_error"));
+    BasicFileAttributes attributes =
+        Files.readAttributes(fifo, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+    assertThat(attributes.isOther()).as("still a FIFO").isTrue();
     WireMock.verify(0, WireMock.postRequestedFor(urlEqualTo("/v1/render")));
   }
 

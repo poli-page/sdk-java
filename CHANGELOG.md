@@ -47,17 +47,26 @@ this release the SDK shares its major.minor with the Poli Page API: SDK
   `render().pdf()` and `downloadPdf()` keep bounding the whole download.
 - **BREAKING**: An `io_error` from `renderToFile` / `renderToFileAsync` has
   the message `Failed to write PDF: <reason>` (was `Failed to write PDF to
-  <path>: <ExceptionClass>`). For a file-system error the reason names the
-  target and the OS reason, e.g. `Failed to write PDF: /out/invoice.pdf:
-  Permission denied`; any other I/O error gives the JDK exception's own
-  message. The JDK exception is still `getCause()`, and the target file is
-  still left as it was.
-- **BREAKING**: `renderToFile` / `renderToFileAsync` refuse, before any
-  request, a target that exists and is not writable, or is a directory:
-  `io_error`, e.g. `Failed to write PDF: /out/invoice.pdf: Permission
-  denied`, and the file is left as it is. A read-only file used to be
-  replaced, since moving a file into place needs only the directory's
-  permission, and an empty directory too.
+  <path>: <ExceptionClass>`). The reason always names the target, then the
+  cause: the OS reason for a file-system error, e.g. `Failed to write PDF:
+  /out/invoice.pdf: Permission denied`, or the JDK exception's message for
+  any other I/O error, e.g. `Failed to write PDF: /out/invoice.pdf: No space
+  left on device`. The JDK exception is still `getCause()`, and the target
+  file is still left as it was.
+- **BREAKING**: `renderToFile` / `renderToFileAsync` check the target
+  before any request, so a file that cannot be written no longer costs a
+  render. They fail with `io_error`, leaving everything as it is, when the
+  target exists and is not a regular file (a directory, a FIFO, a device or
+  a socket: `Failed to write PDF: /out/invoice.pdf: not a regular file`) or
+  is not writable, or when its directory is not a directory, cannot be
+  created or is not writable (e.g. `Failed to write PDF: /out/invoice.pdf:
+  Permission denied`). A read-only file used to be replaced, since moving a
+  file into place needs only the directory's permission, and so did an
+  empty directory, a FIFO or a socket; a missing directory failed only
+  after the render. The check reads attributes only and never opens the
+  target.
+- `renderToFile` / `renderToFileAsync` create missing parent directories
+  (a missing directory used to be an `io_error`).
 - `renderToFile` / `renderToFileAsync` follow a symbolic link: the file it
   points to is replaced and the link stays a link (the link itself used to
   be replaced by a regular file). An existing target keeps its POSIX

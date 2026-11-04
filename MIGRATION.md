@@ -43,18 +43,20 @@ between two reads is not counted.
 
 ### 4. `io_error` messages carry the reason
 
-`renderToFile` failures read `Failed to write PDF: <reason>`. For a
-file-system error the reason is the target and the OS reason, e.g. `Failed
-to write PDF: /out/invoice.pdf: Permission denied`; any other I/O error
-gives the JDK exception's own message. Use `getCause()` for the
-`IOException` itself, which may name the temporary file next to the
-target.
+`renderToFile` failures read `Failed to write PDF: <target>: <cause>`,
+e.g. `Failed to write PDF: /out/invoice.pdf: Permission denied` or `Failed
+to write PDF: /out/invoice.pdf: No space left on device`. Use `getCause()`
+for the `IOException` itself, which may name the temporary file next to
+the target.
 
-### 5. `renderToFile` refuses a read-only target
+### 5. `renderToFile` checks the target before rendering
 
-An existing target that is not writable, or a directory, now fails with
-`io_error` before the render request, instead of being replaced. Make the
-file writable, or write elsewhere. A symbolic link is now followed (the file
+Before the render request, `renderToFile` now creates missing parent
+directories, then fails with `io_error` when the target exists and is not a
+regular file (a directory, a FIFO, a device or a socket: `… : not a regular
+file`) or is not writable, or when its directory is not writable. A
+read-only file, an empty directory, a FIFO or a socket used to be replaced.
+Make the file writable, or write elsewhere. A symbolic link is now followed (the file
 it points to is replaced, the link is kept), and an existing file keeps its
 POSIX permissions, but not its owner or other hard links.
 

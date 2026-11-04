@@ -147,8 +147,11 @@ public final class PoliPageClient {
    *
    * <p>A symbolic link is followed: the file it points to is replaced and the link stays a link. An
    * existing file keeps its POSIX permissions; its owner, and any other hard link to it, are not
-   * kept, since the file is replaced, not rewritten. An existing file that is not writable, or a
-   * directory, fails with {@code io_error} before any request, and is left as it is.
+   * kept, since the file is replaced, not rewritten. Missing parent directories are created. Before
+   * any request, the call fails with {@code io_error}, leaving everything as it is, when the target
+   * exists and is not a regular file (a directory, a FIFO, a device or a socket: {@code Failed to
+   * write PDF: <path>: not a regular file}) or is not writable, or when its directory cannot be
+   * created or is not writable.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
@@ -218,15 +221,43 @@ public final class PoliPageClient {
   }
 
   /**
-   * The file {@code renderToFile} writes: {@code path} with its symbolic links resolved. Fails
-   * before any request when that file exists and is a directory or is not writable.
+   * The file {@code renderToFile} writes: {@code path} with its symbolic links resolved, in a
+   * directory that exists (created when missing) and is writable. Fails before any request when the
+   * file exists and is not a regular file or not writable, or when its directory cannot be made
+   * ready. Reads attributes only: the target is never opened.
    */
   private static Path writableTarget(Path path) throws IOException {
     Path target = resolveLinks(path.toAbsolutePath());
-    if (Files.isDirectory(target)) {
-      throw new FileSystemException(path.toString(), null, "Is a directory");
+    if (Files.exists(target)) {
+      if (!Files.isRegularFile(target)) {
+        throw new FileSystemException(path.toString(), null, "not a regular file");
+      }
+      if (!Files.isWritable(target)) {
+        throw new AccessDeniedException(path.toString());
+      }
     }
-    if (Files.exists(target) && !Files.isWritable(target)) {
+    Path parent = Objects.requireNonNull(target.getParent(), "an absolute file has a parent");
+    // The nearest existing ancestor must be a directory, or the parent can never exist.
+    Path existing = parent;
+    while (existing != null && !Files.exists(existing)) {
+      existing = existing.getParent();
+    }
+    if (existing != null && !Files.isDirectory(existing)) {
+      throw new NotDirectoryException(path.toString());
+    }
+    if (!Files.exists(parent)) {
+      try {
+        Files.createDirectories(parent);
+      } catch (FileAlreadyExistsException ancestorIsAFile) {
+        // An ancestor is a file: the path cannot be a directory.
+        NotDirectoryException error = new NotDirectoryException(path.toString());
+        error.initCause(ancestorIsAFile);
+        throw error;
+      }
+      // The new directories hold no link to resolve, but give the target its real parent.
+      target = parent.toRealPath().resolve(Objects.requireNonNull(target.getFileName()));
+    }
+    if (!Files.isWritable(parent)) {
       throw new AccessDeniedException(path.toString());
     }
     return target;
@@ -299,22 +330,28 @@ public final class PoliPageClient {
    * The {@code io_error} of a failed write: {@code Failed to write PDF: <reason>}. The JDK
    * exception is the cause.
    *
-   * <p>For a {@link FileSystemException} the reason is the JDK's own {@code file: reason} text, but
-   * naming the target rather than the temporary file next to it, and with the OS reason the JDK
-   * leaves out of its subclasses restored: {@code /out/invoice.pdf: Permission denied}. Any other
-   * {@link IOException} gives its own message (its class name when it has none).
+   * <p>The reason is {@code <target>: <cause>}, in the JDK's own {@code file: reason} form, naming
+   * the target rather than the temporary file next to it: {@code /out/invoice.pdf: Permission
+   * denied}, {@code /out/invoice.pdf: No space left on device}. See {@link #reason}.
    */
   private static PoliPageException ioError(Path target, IOException e) {
     return new PoliPageException(
         PoliPageErrorCode.IO_ERROR, 0, "Failed to write PDF: " + reason(target, e), null, e);
   }
 
-  private static String reason(Path target, IOException e) {
+  /**
+   * The reason of an {@code io_error}: {@code <target>: <cause>}. For a {@link FileSystemException}
+   * the cause is its OS reason, restored where the JDK's subclasses leave it out; for any other
+   * {@link IOException} its message, or its class name when it has none. Package-private for tests.
+   */
+  static String reason(Path target, IOException e) {
+    String os;
     if (e instanceof FileSystemException fs) {
-      return new FileSystemException(target.toString(), null, osReason(fs)).getMessage();
+      os = osReason(fs);
+    } else {
+      os = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
-    String message = e.getMessage();
-    return message != null ? message : e.getClass().getName();
+    return new FileSystemException(target.toString(), null, os).getMessage();
   }
 
   /** The OS reason of {@code e}; the JDK's subclasses for common errors carry none. */
