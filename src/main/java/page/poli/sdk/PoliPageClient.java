@@ -9,10 +9,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.UUID;
@@ -51,6 +58,9 @@ import page.poli.sdk.internal.Transport;
  * }</pre>
  */
 public final class PoliPageClient {
+
+  /** Symbolic links {@code renderToFile} follows before giving up, as Linux does. */
+  private static final int MAX_LINK_HOPS = 40;
 
   private static final URI DEFAULT_BASE_URL = URI.create("https://api.poli.page");
   private static final int DEFAULT_MAX_RETRIES = 2;
@@ -135,27 +145,39 @@ public final class PoliPageClient {
    * underlying stream is closed before this method returns, even on failure. The PDF is not
    * buffered in memory.
    *
+   * <p>A symbolic link is followed: the file it points to is replaced and the link stays a link. An
+   * existing file keeps its POSIX permissions; its owner, and any other hard link to it, are not
+   * kept, since the file is replaced, not rewritten. An existing file that is not writable, or a
+   * directory, fails with {@code io_error} before any request, and is left as it is.
+   *
    * @param input the render input — non-null
    * @param path destination file path — non-null
    * @throws PoliPageException on render failure, a failed download ({@code DOWNLOAD_FAILED}, also
    *     when the connection drops while the PDF is read, or when no bytes arrive for the client's
    *     timeout) or local file-write failure (code {@code "io_error"}, message {@code Failed to
-   *     write PDF: <reason>} with the JDK's own text, the {@link IOException} as cause; never
-   *     retried)
+   *     write PDF: <reason>}, e.g. {@code Failed to write PDF: /out/invoice.pdf: Permission
+   *     denied}, the {@link IOException} as cause; never retried)
    */
   public void renderToFile(RenderInput input, Path path) {
-    try (InputStream stream = render.pdfStream(input)) {
-      writeFile(stream, path, () -> false);
+    Path target;
+    try {
+      target = writableTarget(path);
     } catch (IOException e) {
-      throw calls.failed(ioError(e));
+      throw calls.failed(ioError(path, e));
+    }
+    try (InputStream stream = render.pdfStream(input)) {
+      writeFile(stream, target, () -> false);
+    } catch (IOException e) {
+      throw calls.failed(ioError(path, e));
     }
   }
 
   /**
-   * Async variant of {@link #renderToFile(RenderInput, Path)}, with the same temporary file: a call
-   * that fails or is cancelled never leaves a partial file. {@code path} is either as it was or the
-   * complete PDF; a cancel that lands once the download is complete may still replace it.
-   * Cancelling the future during the copy closes the download and stops the copy.
+   * Async variant of {@link #renderToFile(RenderInput, Path)}, with the same temporary file, link
+   * and permission rules: a call that fails or is cancelled never leaves a partial file. {@code
+   * path} is either as it was or the complete PDF; a cancel that lands once the download is
+   * complete may still replace it. Cancelling the future during the copy closes the download and
+   * stops the copy.
    *
    * @param input the render input — non-null
    * @param path destination file path — non-null
@@ -163,6 +185,12 @@ public final class PoliPageClient {
    *     failure, with the cause wrapped in {@code CompletionException} per JDK convention)
    */
   public CompletableFuture<Void> renderToFileAsync(RenderInput input, Path path) {
+    Path target;
+    try {
+      target = writableTarget(path);
+    } catch (IOException e) {
+      return CompletableFuture.failedFuture(calls.failed(ioError(path, e)));
+    }
     return calls
         .futures()
         .<InputStream, Void>map(
@@ -174,7 +202,7 @@ public final class PoliPageClient {
                 return null;
               }
               try (InputStream s = stream) {
-                writeFile(s, path, call::isCancelled);
+                writeFile(s, target, call::isCancelled);
               } catch (IOException | RuntimeException e) {
                 if (call.isCancelled()) {
                   // Aborted: the abort is the call's one error.
@@ -183,22 +211,61 @@ public final class PoliPageClient {
                 if (e instanceof RuntimeException runtime) {
                   throw runtime;
                 }
-                throw calls.failed(ioError((IOException) e));
+                throw calls.failed(ioError(path, (IOException) e));
               }
               return null;
             });
   }
 
   /**
-   * Copy {@code stream} to a temporary file in {@code path}'s directory, then move it onto {@code
-   * path}. The target is touched only once the whole PDF is written and the call is not cancelled;
-   * otherwise only the temporary file is removed.
+   * The file {@code renderToFile} writes: {@code path} with its symbolic links resolved. Fails
+   * before any request when that file exists and is a directory or is not writable.
+   */
+  private static Path writableTarget(Path path) throws IOException {
+    Path target = resolveLinks(path.toAbsolutePath());
+    if (Files.isDirectory(target)) {
+      throw new FileSystemException(path.toString(), null, "Is a directory");
+    }
+    if (Files.exists(target) && !Files.isWritable(target)) {
+      throw new AccessDeniedException(path.toString());
+    }
+    return target;
+  }
+
+  /**
+   * {@code path} with its symbolic links resolved, the last one included, whether or not the file
+   * exists yet. A link's text is resolved against the real directory of the link, as the OS does.
+   */
+  private static Path resolveLinks(Path path) throws IOException {
+    if (Files.exists(path)) {
+      return path.toRealPath();
+    }
+    Path current = path;
+    for (int hops = 0; Files.isSymbolicLink(current); hops++) {
+      if (hops == MAX_LINK_HOPS) {
+        throw new FileSystemException(path.toString(), null, "Too many levels of symbolic links");
+      }
+      Path parent = Objects.requireNonNull(current.getParent(), "a link has a parent");
+      current = parent.toRealPath().resolve(Files.readSymbolicLink(current));
+    }
+    Path parent = current.getParent();
+    Path name = current.getFileName();
+    if (parent != null && name != null && Files.isDirectory(parent)) {
+      current = parent.toRealPath().resolve(name);
+    }
+    return current;
+  }
+
+  /**
+   * Copy {@code stream} to a temporary file in {@code target}'s directory, then move it onto {@code
+   * target}, which has no symbolic link left. An existing target's POSIX permissions go onto the
+   * temporary file first. The target is touched only once the whole PDF is written and the call is
+   * not cancelled; otherwise only the temporary file is removed.
    *
    * @return whether the file was written
    */
-  private static boolean writeFile(InputStream stream, Path path, BooleanSupplier cancelled)
+  private static boolean writeFile(InputStream stream, Path target, BooleanSupplier cancelled)
       throws IOException {
-    Path target = path.toAbsolutePath();
     Path name = target.getFileName();
     Path temp =
         target.resolveSibling(
@@ -208,6 +275,10 @@ public final class PoliPageClient {
       Files.copy(stream, temp);
       if (cancelled.getAsBoolean()) {
         return false;
+      }
+      if (Files.exists(target)
+          && Files.getFileAttributeView(target, PosixFileAttributeView.class) != null) {
+        Files.setPosixFilePermissions(temp, Files.getPosixFilePermissions(target));
       }
       try {
         Files.move(
@@ -225,18 +296,48 @@ public final class PoliPageClient {
   }
 
   /**
-   * The {@code io_error} of a failed write: {@code Failed to write PDF: <reason>}, where the reason
-   * is the JDK exception's own message, unchanged (its class name when it has none). The JDK
+   * The {@code io_error} of a failed write: {@code Failed to write PDF: <reason>}. The JDK
    * exception is the cause.
+   *
+   * <p>For a {@link FileSystemException} the reason is the JDK's own {@code file: reason} text, but
+   * naming the target rather than the temporary file next to it, and with the OS reason the JDK
+   * leaves out of its subclasses restored: {@code /out/invoice.pdf: Permission denied}. Any other
+   * {@link IOException} gives its own message (its class name when it has none).
    */
-  private static PoliPageException ioError(IOException e) {
-    String reason = e.getMessage();
+  private static PoliPageException ioError(Path target, IOException e) {
     return new PoliPageException(
-        PoliPageErrorCode.IO_ERROR,
-        0,
-        "Failed to write PDF: " + (reason != null ? reason : e.getClass().getName()),
-        null,
-        e);
+        PoliPageErrorCode.IO_ERROR, 0, "Failed to write PDF: " + reason(target, e), null, e);
+  }
+
+  private static String reason(Path target, IOException e) {
+    if (e instanceof FileSystemException fs) {
+      return new FileSystemException(target.toString(), null, osReason(fs)).getMessage();
+    }
+    String message = e.getMessage();
+    return message != null ? message : e.getClass().getName();
+  }
+
+  /** The OS reason of {@code e}; the JDK's subclasses for common errors carry none. */
+  private static String osReason(FileSystemException e) {
+    if (e.getReason() != null) {
+      return e.getReason();
+    }
+    if (e instanceof AccessDeniedException) {
+      return "Permission denied";
+    }
+    if (e instanceof NoSuchFileException) {
+      return "No such file or directory";
+    }
+    if (e instanceof FileAlreadyExistsException) {
+      return "File exists";
+    }
+    if (e instanceof NotDirectoryException) {
+      return "Not a directory";
+    }
+    if (e instanceof DirectoryNotEmptyException) {
+      return "Directory not empty";
+    }
+    return e.getClass().getSimpleName();
   }
 
   private static void deleteQuietly(Path path) {

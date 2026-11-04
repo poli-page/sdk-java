@@ -112,13 +112,21 @@ final class Calls {
     if (tree == null || tree.isMissingNode()) {
       throw failed(invalidResponse(response, notJson(response), null));
     }
+    T value;
     try {
-      return mapper.treeToValue(tree, type);
+      value = mapper.treeToValue(tree, type);
     } catch (IOException e) {
-      throw failed(
-          invalidResponse(
-              response, "Failed to parse " + path + " response as " + type.getSimpleName(), e));
+      throw failed(invalidResponse(response, wrongShape(path, type), e));
     }
+    if (value == null) {
+      // A literal JSON null binds to null: the answer is JSON, but not the expected object.
+      throw failed(invalidResponse(response, wrongShape(path, type), null));
+    }
+    return value;
+  }
+
+  private static String wrongShape(String path, Class<?> type) {
+    return "Failed to parse " + path + " response as " + type.getSimpleName();
   }
 
   private static String notJson(HttpResponse<byte[]> response) {

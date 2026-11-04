@@ -331,7 +331,8 @@ public final class Download {
         number = ++readNumber;
         reading = true;
       }
-      ScheduledFuture<?> timer = Timers.schedule(() -> expire(number), timeout);
+      // expire only flags and closes the body: short enough for the timer thread itself.
+      ScheduledFuture<?> timer = Timers.scheduleOnTimerThread(() -> expire(number), timeout);
       R result;
       try {
         result = read.run();

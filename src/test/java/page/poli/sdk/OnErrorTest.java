@@ -78,10 +78,11 @@ class OnErrorTest {
               PoliPageException.class,
               e -> {
                 assertThat(e.code()).isEqualTo("io_error");
-                // The reason is the JDK exception's own text, unchanged.
+                // It names the target, not the hidden temporary file in the JDK exception.
                 assertThat(e.getCause()).isInstanceOf(java.nio.file.NoSuchFileException.class);
+                assertThat(e.getCause().getMessage()).endsWith(".part");
                 assertThat(e.getMessage())
-                    .isEqualTo("Failed to write PDF: " + e.getCause().getMessage());
+                    .isEqualTo("Failed to write PDF: " + notAFile + ": No such file or directory");
               });
       assertThatThrownBy(() -> sdk.renderToFileAsync(INPUT, notAFile).join())
           .cause()

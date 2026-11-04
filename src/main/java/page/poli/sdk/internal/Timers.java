@@ -7,9 +7,10 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * One daemon thread for the async path's timers: the per-attempt timeout and the wait before a
- * retry. A timer only hands its task to the common async executor, so a slow hook never delays
- * another timer. Cancelled timers are removed at once.
+ * One daemon thread for the SDK's timers: the per-attempt timeout and the wait before a retry of
+ * the async path, and the idle timeout of a streamed download. A timer hands its task to the common
+ * async executor, so a slow hook never delays another timer; only the idle timeout, which just
+ * closes the body, runs on the timer thread. Cancelled timers are removed at once.
  */
 final class Timers {
 
@@ -28,6 +29,18 @@ final class Timers {
   static ScheduledFuture<?> schedule(Runnable task, Duration delay) {
     return TIMER.schedule(
         () -> CompletableFuture.runAsync(task), saturatedNanos(delay), TimeUnit.NANOSECONDS);
+  }
+
+  /**
+   * Run {@code task} on the timer thread itself once {@code delay} has passed, so a busy common
+   * pool cannot delay it. Only for a task that is short and never blocks.
+   *
+   * @param task what to run
+   * @param delay how long to wait first
+   * @return the timer, to cancel it
+   */
+  static ScheduledFuture<?> scheduleOnTimerThread(Runnable task, Duration delay) {
+    return TIMER.schedule(task, saturatedNanos(delay), TimeUnit.NANOSECONDS);
   }
 
   /**

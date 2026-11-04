@@ -107,6 +107,31 @@ class InvalidResponseTest {
   }
 
   @Test
+  void a_json_null_is_invalid_response_not_a_null_result() {
+    try (MockServer server =
+        MockServer.start(
+            List.of(
+                answer(200, "application/json", "null"),
+                answer(200, "application/json", "null")))) {
+      PoliPageClient sdk = client(server, new CopyOnWriteArrayList<>());
+
+      assertThatThrownBy(() -> sdk.documents().get("doc_abc123"))
+          .isInstanceOfSatisfying(
+              PoliPageException.class,
+              e -> {
+                assertThat(e.code()).isEqualTo(PoliPageErrorCode.INVALID_RESPONSE);
+                assertThat(e.getMessage())
+                    .isEqualTo(
+                        "Failed to parse /v1/documents/doc_abc123 response as DocumentDescriptor");
+              });
+      assertThatThrownBy(() -> sdk.documents().thumbnails("doc_abc123"))
+          .isInstanceOfSatisfying(
+              PoliPageException.class,
+              e -> assertThat(e.code()).isEqualTo(PoliPageErrorCode.INVALID_RESPONSE));
+    }
+  }
+
+  @Test
   void json_of_the_wrong_shape_is_invalid_response_naming_the_type() {
     try (MockServer server = MockServer.start(List.of(answer(200, "application/json", "[1,2]")))) {
       PoliPageClient sdk = client(server, new CopyOnWriteArrayList<>());

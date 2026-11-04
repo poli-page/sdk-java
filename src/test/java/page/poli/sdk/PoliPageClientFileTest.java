@@ -9,14 +9,17 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Map;
@@ -140,8 +143,10 @@ class PoliPageClientFileTest {
               assertThat(ex.toPayload().status()).isNull();
               assertThat(ex.isRetryable()).isFalse();
               assertThat(ex.getCause()).isInstanceOf(IOException.class);
+              // The target, not the temporary file the JDK names, with the OS reason restored.
+              assertThat(ex.getCause()).isInstanceOf(NoSuchFileException.class);
               assertThat(ex.getMessage())
-                  .isEqualTo("Failed to write PDF: " + ex.getCause().getMessage());
+                  .isEqualTo("Failed to write PDF: " + bogusPath + ": No such file or directory");
             });
     assertThat(bogusPath).doesNotExist();
   }
@@ -168,7 +173,7 @@ class PoliPageClientFileTest {
                 assertThat(ex.code()).isEqualTo("io_error");
                 assertThat(ex.getCause()).isInstanceOf(AccessDeniedException.class);
                 assertThat(ex.getMessage())
-                    .isEqualTo("Failed to write PDF: " + ex.getCause().getMessage());
+                    .isEqualTo("Failed to write PDF: " + target + ": Permission denied");
               });
       assertThat(Files.readAllBytes(target)).isEqualTo(before);
       try (Stream<Path> files = Files.list(dir)) {
@@ -176,6 +181,120 @@ class PoliPageClientFileTest {
       }
     } finally {
       Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"));
+    }
+  }
+
+  @Test
+  void renderToFile_onto_a_directory_is_io_error_before_any_request(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws IOException {
+    stubHappyPath(wm);
+    Path target = Files.createDirectory(tmp.resolve("invoice.pdf"));
+    Files.writeString(target.resolve("keep.txt"), "kept");
+
+    assertThatThrownBy(() -> newClient(wm).renderToFile(simpleInput(), target))
+        .isInstanceOfSatisfying(
+            PoliPageException.class,
+            ex -> {
+              assertThat(ex.code()).isEqualTo("io_error");
+              assertThat(ex.getCause()).isInstanceOf(FileSystemException.class);
+              assertThat(ex.getMessage())
+                  .isEqualTo("Failed to write PDF: " + target + ": Is a directory");
+            });
+    assertThat(target.resolve("keep.txt")).hasContent("kept");
+    WireMock.verify(0, WireMock.postRequestedFor(urlEqualTo("/v1/render")));
+  }
+
+  @Test
+  void a_read_only_target_is_io_error_before_any_request_and_is_not_replaced(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws IOException {
+    stubHappyPath(wm);
+    Path target = tmp.resolve("invoice.pdf");
+    byte[] before = "previous PDF".getBytes(StandardCharsets.UTF_8);
+    Files.write(target, before);
+    boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
+    if (posix) {
+      Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("r--r--r--"));
+    } else {
+      Files.setAttribute(target, "dos:readonly", true);
+    }
+    try {
+      Assumptions.assumeFalse(Files.isWritable(target), "permissions are not enforced (root?)");
+      PoliPageClient client = newClient(wm);
+
+      assertThatThrownBy(() -> client.renderToFile(simpleInput(), target))
+          .isInstanceOfSatisfying(
+              PoliPageException.class,
+              ex -> {
+                assertThat(ex.code()).isEqualTo("io_error");
+                assertThat(ex.statusCode()).isZero();
+                assertThat(ex.isRetryable()).isFalse();
+                assertThat(ex.getCause()).isInstanceOf(AccessDeniedException.class);
+                assertThat(ex.getMessage())
+                    .isEqualTo("Failed to write PDF: " + target + ": Permission denied");
+              });
+      assertThatThrownBy(() -> client.renderToFileAsync(simpleInput(), target).join())
+          .isInstanceOf(CompletionException.class)
+          .cause()
+          .isInstanceOfSatisfying(
+              PoliPageException.class, ex -> assertThat(ex.code()).isEqualTo("io_error"));
+      assertThat(Files.readAllBytes(target)).isEqualTo(before);
+      WireMock.verify(0, WireMock.postRequestedFor(urlEqualTo("/v1/render")));
+    } finally {
+      if (posix) {
+        Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("rw-r--r--"));
+      } else {
+        Files.setAttribute(target, "dos:readonly", false);
+      }
+    }
+  }
+
+  @Test
+  void renderToFile_keeps_the_posix_permissions_of_an_existing_target(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws IOException {
+    Assumptions.assumeTrue(
+        FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+        "needs POSIX permissions");
+    stubHappyPath(wm);
+    Path target = tmp.resolve("invoice.pdf");
+    Files.writeString(target, "old");
+    Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("rw-r-----"));
+
+    newClient(wm).renderToFile(simpleInput(), target);
+
+    assertThat(Files.readAllBytes(target)).isEqualTo(PDF_BYTES);
+    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(target)))
+        .isEqualTo("rw-r-----");
+  }
+
+  @Test
+  void renderToFile_through_symbolic_links_updates_the_linked_file_and_keeps_the_links(
+      WireMockRuntimeInfo wm, @TempDir Path tmp) throws IOException {
+    Assumptions.assumeTrue(
+        FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+        "symbolic links need privileges on Windows");
+    stubHappyPath(wm);
+    // sym -> real/dir, real/dir/link -> ../a.pdf: sym/link is real/a.pdf.
+    Path dir = Files.createDirectories(tmp.resolve("real/dir"));
+    Path sym = Files.createSymbolicLink(tmp.resolve("sym"), Path.of("real", "dir"));
+    Path link = Files.createSymbolicLink(dir.resolve("link"), Path.of("..", "a.pdf"));
+    Path real = tmp.resolve("real/a.pdf");
+    PoliPageClient client = newClient(wm);
+
+    // The linked file does not exist yet, then it does.
+    client.renderToFile(simpleInput(), sym.resolve("link"));
+    assertThat(Files.readAllBytes(real)).isEqualTo(PDF_BYTES);
+    Files.writeString(real, "old");
+    client.renderToFileAsync(simpleInput(), sym.resolve("link")).join();
+
+    assertThat(Files.readAllBytes(real)).isEqualTo(PDF_BYTES);
+    assertThat(Files.isSymbolicLink(link)).isTrue();
+    assertThat(Files.readSymbolicLink(link)).isEqualTo(Path.of("..", "a.pdf"));
+    assertThat(Files.isSymbolicLink(sym)).isTrue();
+    try (Stream<Path> files = Files.list(dir)) {
+      assertThat(files).containsExactly(link);
+    }
+    try (Stream<Path> files = Files.list(tmp.resolve("real"))) {
+      assertThat(files).containsExactlyInAnyOrder(dir, real);
     }
   }
 

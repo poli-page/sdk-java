@@ -41,12 +41,22 @@ instead of blocking until the connection closes. `renderToFile` and
 too, and the target file is left as it was. The time your code spends
 between two reads is not counted.
 
-### 4. `io_error` messages carry the JDK's reason
+### 4. `io_error` messages carry the reason
 
-`renderToFile` failures read `Failed to write PDF: <reason>`, the JDK
-exception's own message, which may name the temporary file next to the
-target rather than the target. Use `getCause()` for the
-`IOException` itself.
+`renderToFile` failures read `Failed to write PDF: <reason>`. For a
+file-system error the reason is the target and the OS reason, e.g. `Failed
+to write PDF: /out/invoice.pdf: Permission denied`; any other I/O error
+gives the JDK exception's own message. Use `getCause()` for the
+`IOException` itself, which may name the temporary file next to the
+target.
+
+### 5. `renderToFile` refuses a read-only target
+
+An existing target that is not writable, or a directory, now fails with
+`io_error` before the render request, instead of being replaced. Make the
+file writable, or write elsewhere. A symbolic link is now followed (the file
+it points to is replaced, the link is kept), and an existing file keeps its
+POSIX permissions, but not its owner or other hard links.
 
 ## From 0.10.0 to 0.11.0
 

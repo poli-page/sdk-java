@@ -25,7 +25,10 @@ this release the SDK shares its major.minor with the Poli Page API: SDK
   <Type>`). It keeps the real 2xx as `statusCode()` and the answer's
   `x-request-id` as `requestId()`, and is never retried. JSON followed by
   other text used to be accepted. JSON of the wrong shape is still
-  `invalid_response`, with the old message naming the expected type.
+  `invalid_response`, with the old message naming the expected type; so is
+  a body that is just `null`, which used to return `null` from
+  `documents().get` and `render().document` and throw a
+  `NullPointerException` from `documents().thumbnails`.
 - **BREAKING**: `toPayload()` answers `status` `502` for `invalid_response`
   (it answered the 2xx). The error's own `statusCode()` keeps the 2xx.
 - **BREAKING**: A presigned-URL download that passes `requestTimeout` fails
@@ -43,10 +46,24 @@ this release the SDK shares its major.minor with the Poli Page API: SDK
   reads does not count, so a large PDF read slowly is not cut off.
   `render().pdf()` and `downloadPdf()` keep bounding the whole download.
 - **BREAKING**: An `io_error` from `renderToFile` / `renderToFileAsync` has
-  the message `Failed to write PDF: <reason>`, where the reason is the JDK
-  exception's own message (was `Failed to write PDF to <path>:
-  <ExceptionClass>`). The JDK exception is still `getCause()`, and the
-  target file is still left as it was.
+  the message `Failed to write PDF: <reason>` (was `Failed to write PDF to
+  <path>: <ExceptionClass>`). For a file-system error the reason names the
+  target and the OS reason, e.g. `Failed to write PDF: /out/invoice.pdf:
+  Permission denied`; any other I/O error gives the JDK exception's own
+  message. The JDK exception is still `getCause()`, and the target file is
+  still left as it was.
+- **BREAKING**: `renderToFile` / `renderToFileAsync` refuse, before any
+  request, a target that exists and is not writable, or is a directory:
+  `io_error`, e.g. `Failed to write PDF: /out/invoice.pdf: Permission
+  denied`, and the file is left as it is. A read-only file used to be
+  replaced, since moving a file into place needs only the directory's
+  permission, and an empty directory too.
+- `renderToFile` / `renderToFileAsync` follow a symbolic link: the file it
+  points to is replaced and the link stays a link (the link itself used to
+  be replaced by a regular file). An existing target keeps its POSIX
+  permissions (it used to get the defaults of a new file). Its owner and
+  any other hard link to it are not kept: the file is replaced, not
+  rewritten.
 
 ### Added
 
