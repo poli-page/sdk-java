@@ -6,6 +6,60 @@ This file documents breaking changes between major versions of
 breaking changes ship in major version bumps (in minor bumps while the
 version is `0.x`) and always come with an entry here.
 
+## From 0.11.0 to 0.13.0
+
+The SDK now follows the Poli Page API contract v0.13.0, and its version
+follows the API's major.minor: there is no Java `0.12.x`.
+
+### 1. `invalid_response` has a fixed message, and answers 502
+
+A 2xx answer whose body is not JSON throws `invalid_response` with the
+message `Invalid response: HTTP <status> body is not JSON`. Code that matched
+the old `Failed to parse …` text must use the code instead:
+
+```java
+if (PoliPageErrorCode.INVALID_RESPONSE.equals(ex.code())) { … }
+```
+
+`statusCode()` is still the 2xx, but `toPayload().status()` is now `502`. An
+integration that answered `toPayload()` as its HTTP body now answers 502,
+not a 2xx error.
+
+### 2. The download timeout has its own message
+
+A presigned-URL download that passes `requestTimeout` throws
+`DOWNLOAD_FAILED` with `Failed to download PDF: timeout` (it was `Failed to
+download PDF: network error`). Both have `statusCode() == 0` and neither is
+retried.
+
+### 3. `pdfStream()` and `renderToFile` have an idle timeout
+
+A read of the `pdfStream()` body that waits more than `requestTimeout` for
+the next bytes throws `DOWNLOAD_FAILED` (`Failed to download PDF: timeout`)
+instead of blocking until the connection closes. `renderToFile` and
+`renderToFileAsync` read the same stream, so a stalled download fails there
+too, and the target file is left as it was. The time your code spends
+between two reads is not counted.
+
+### 4. `io_error` messages carry the reason
+
+`renderToFile` failures read `Failed to write PDF: <target>: <cause>`,
+e.g. `Failed to write PDF: /out/invoice.pdf: Permission denied` or `Failed
+to write PDF: /out/invoice.pdf: No space left on device`. Use `getCause()`
+for the `IOException` itself, which may name the temporary file next to
+the target.
+
+### 5. `renderToFile` checks the target before rendering
+
+Before the render request, `renderToFile` now creates missing parent
+directories, then fails with `io_error` when the target exists and is not a
+regular file (a directory, a FIFO, a device or a socket: `… : not a regular
+file`) or is not writable, or when its directory is not writable. A
+read-only file, an empty directory, a FIFO or a socket used to be replaced.
+Make the file writable, or write elsewhere. A symbolic link is now followed (the file
+it points to is replaced, the link is kept), and an existing file keeps its
+POSIX permissions, but not its owner or other hard links.
+
 ## From 0.10.0 to 0.11.0
 
 The SDK now follows the Poli Page API contract (SDK specification §8, §9).

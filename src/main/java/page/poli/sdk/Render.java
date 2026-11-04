@@ -34,7 +34,9 @@ public final class Render {
    * Render the given input as a PDF and return the raw bytes.
    *
    * <p>Convenience over {@link #document(RenderInput)} + the presigned download. For large PDFs,
-   * prefer {@link #pdfStream(RenderInput)} to avoid buffering the whole payload.
+   * prefer {@link #pdfStream(RenderInput)} to avoid buffering the whole payload. The client's
+   * timeout bounds the whole download; past it the call raises {@code DOWNLOAD_FAILED} with {@code
+   * Failed to download PDF: timeout}.
    *
    * @param input the render input — non-null
    * @return the PDF bytes
@@ -53,6 +55,10 @@ public final class Render {
    * the call in {@code try-with-resources} (or call {@code close()} explicitly) — leaking the
    * stream leaks a slot from the JDK's HTTP connection pool. A read that fails because the
    * connection dropped throws {@code DOWNLOAD_FAILED} (an unchecked {@link PoliPageException}).
+   *
+   * <p>The client's timeout is an idle timeout here: it bounds the wait for the download's headers,
+   * then each read that waits for the next bytes, not the time the caller takes between reads. Past
+   * it, the read throws {@code DOWNLOAD_FAILED} with {@code Failed to download PDF: timeout}.
    *
    * <pre>{@code
    * try (InputStream pdf = client.render().pdfStream(input)) {

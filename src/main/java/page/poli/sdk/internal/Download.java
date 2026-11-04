@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.net.http.HttpResponse.ResponseInfo;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -23,26 +24,35 @@ import page.poli.sdk.exception.PoliPageDownloadException;
 import page.poli.sdk.exception.PoliPageException;
 
 /**
- * The presigned-URL download (SDK spec §7.2): one plain {@code GET} to object storage, never
- * retried, with no {@code Authorization} and no {@code Idempotency-Key}.
+ * The presigned-URL download: one plain {@code GET} to object storage, never retried, with no
+ * {@code Authorization} and no {@code Idempotency-Key}.
  *
  * <ul>
  *   <li>A non-2xx answer raises {@code DOWNLOAD_FAILED} with the storage status: {@code Failed to
  *       download PDF: HTTP <status>}.
- *   <li>No answer, a connection dropped while the body is read, or the client's timeout passing
- *       raise {@code DOWNLOAD_FAILED} without a status: {@code Failed to download PDF: network
- *       error}, the I/O or timeout exception as cause. A streamed body that breaks off raises the
- *       same error from {@link InputStream#read()}.
+ *   <li>No answer, or a connection dropped while the body is read (a body shorter than its {@code
+ *       Content-Length} included), raises {@code DOWNLOAD_FAILED} without a status: {@code Failed
+ *       to download PDF: network error}, the I/O exception as cause. A streamed body that breaks
+ *       off raises the same error from {@link InputStream#read()}.
+ *   <li>The client's timeout passing raises {@code DOWNLOAD_FAILED} without a status: {@code Failed
+ *       to download PDF: timeout}. Only a timer that fired gives this message: the SDK's own bound
+ *       below, or a JDK timeout. The download carries no JDK request timeout, which on JDK 26 and
+ *       later would also bound the whole body.
  *   <li>A thread interrupt, or {@code cancel} of the returned future, raises {@code aborted}.
  * </ul>
  *
- * <p>The timeout bounds the whole download of {@link #bytes(String)}, and the wait for the headers
- * of {@link #stream(String)}, whose body the caller reads at its own pace.
+ * <p>The timeout bounds the whole download of {@link #bytes(String)}, body included. For {@link
+ * #stream(String)}, whose body the caller reads at its own pace, it is an idle timeout: it bounds
+ * the wait for the headers, then each read that waits for the next bytes, so a large PDF read
+ * slowly is not cut off, but a body that stops arriving is.
  */
 public final class Download {
 
   /** {@code policy.sdkErrors.DOWNLOAD_FAILED.networkMessage} of the API contract. */
   static final String NETWORK_MESSAGE = "Failed to download PDF: network error";
+
+  /** {@code policy.sdkErrors.DOWNLOAD_FAILED.timeoutMessage} of the API contract. */
+  static final String TIMEOUT_MESSAGE = "Failed to download PDF: timeout";
 
   private final Transport transport;
   private final Duration timeout;
@@ -233,6 +243,12 @@ public final class Download {
     if (info != null && (info.statusCode() < 200 || info.statusCode() >= 300)) {
       return httpFailure(info.statusCode(), cause);
     }
+    // TimeoutException: the SDK's own bound fired; HttpTimeoutException: a JDK timeout fired. Both
+    // are the timeout itself, never a guess from elapsed time.
+    if (cause instanceof TimeoutException
+        || RetryLoop.hasCause(cause, HttpTimeoutException.class)) {
+      return timeoutFailure(cause);
+    }
     return networkFailure(cause);
   }
 
@@ -246,19 +262,40 @@ public final class Download {
         PoliPageErrorCode.DOWNLOAD_FAILED, 0, NETWORK_MESSAGE, cause);
   }
 
+  static PoliPageException timeoutFailure(@Nullable Throwable cause) {
+    return new PoliPageDownloadException(
+        PoliPageErrorCode.DOWNLOAD_FAILED, 0, TIMEOUT_MESSAGE, cause);
+  }
+
   static PoliPageException aborted(Throwable cause) {
     return new PoliPageException(PoliPageErrorCode.ABORTED, 0, "Request was aborted", null, cause);
   }
 
   /**
    * The body of a streamed download, whose read failures are SDK errors: {@code DOWNLOAD_FAILED}
-   * when the connection drops, {@code aborted} when the reading thread is interrupted. Both are
-   * unchecked, so they pass through {@link InputStream#transferTo} and {@code Files.copy}; each
-   * fires {@code onError}.
+   * when the connection drops or the idle timeout fires, {@code aborted} when the reading thread is
+   * interrupted. Both are unchecked, so they pass through {@link InputStream#transferTo} and {@code
+   * Files.copy}; each fires {@code onError}.
+   *
+   * <p>Each read that blocks is bounded by the client's timeout: a timer armed for that read closes
+   * the body when it fires, which ends the blocked read, and the read then fails with {@code Failed
+   * to download PDF: timeout}. The time the caller spends between two reads is not counted.
    */
   private final class DownloadStream extends FilterInputStream {
 
+    private final Object lock = new Object();
+
+    /** Closed by the caller, or by an abort from another thread. */
     private volatile boolean closed;
+
+    /** The idle timer fired during a read and closed the body. */
+    private volatile boolean timedOut;
+
+    /** Number of the read in progress; guarded by {@link #lock}. */
+    private long readNumber;
+
+    /** Whether a read is in progress; guarded by {@link #lock}. */
+    private boolean reading;
 
     DownloadStream(InputStream body) {
       super(body);
@@ -272,28 +309,61 @@ public final class Download {
 
     @Override
     public int read() {
-      try {
-        return super.read();
-      } catch (IOException e) {
-        throw readFailure(e);
-      }
+      return bounded(() -> super.read());
     }
 
     @Override
     public int read(byte[] buffer, int offset, int length) {
-      try {
-        return super.read(buffer, offset, length);
-      } catch (IOException e) {
-        throw readFailure(e);
-      }
+      return bounded(() -> super.read(buffer, offset, length));
     }
 
     @Override
     public long skip(long n) {
+      return bounded(() -> super.skip(n));
+    }
+
+    private <R extends Number> R bounded(Read<R> read) {
+      if (timedOut) {
+        throw fail(timeoutFailure(null));
+      }
+      long number;
+      synchronized (lock) {
+        number = ++readNumber;
+        reading = true;
+      }
+      // expire only flags and closes the body: short enough for the timer thread itself.
+      ScheduledFuture<?> timer = Timers.scheduleOnTimerThread(() -> expire(number), timeout);
+      R result;
       try {
-        return super.skip(n);
+        result = read.run();
       } catch (IOException e) {
         throw readFailure(e);
+      } finally {
+        synchronized (lock) {
+          reading = false;
+        }
+        timer.cancel(false);
+      }
+      // A body closed by the timer may end as if complete: never hand that out as the end of the
+      // PDF.
+      if (timedOut && result.longValue() <= 0) {
+        throw fail(timeoutFailure(null));
+      }
+      return result;
+    }
+
+    /** The idle timer of read {@code number}: close the body if that read is still waiting. */
+    private void expire(long number) {
+      synchronized (lock) {
+        if (!reading || readNumber != number) {
+          return;
+        }
+        timedOut = true;
+      }
+      try {
+        in.close();
+      } catch (IOException ignored) {
+        // the blocked read fails either way
       }
     }
 
@@ -312,7 +382,16 @@ public final class Download {
           || Thread.currentThread().isInterrupted()) {
         return aborted(e);
       }
+      if (timedOut || RetryLoop.hasCause(e, HttpTimeoutException.class)) {
+        return timeoutFailure(e);
+      }
       return networkFailure(e);
     }
+  }
+
+  /** One read of the body. */
+  @FunctionalInterface
+  private interface Read<R> {
+    R run() throws IOException;
   }
 }

@@ -16,7 +16,7 @@ import page.poli.sdk.contract.MockServer;
 import page.poli.sdk.exception.PoliPageException;
 import page.poli.sdk.input.RenderInput;
 
-/** {@code onError} fires once with every error a call ends with (SDK spec §4.1). */
+/** {@code onError} fires once with every error a call ends with. */
 class OnErrorTest {
 
   private static final RenderInput INPUT =
@@ -58,7 +58,8 @@ class OnErrorTest {
   }
 
   @Test
-  void a_file_that_cannot_be_written_is_io_error_and_fires_on_error(@TempDir Path dir) {
+  void a_file_that_cannot_be_written_is_io_error_and_fires_on_error(@TempDir Path dir)
+      throws java.io.IOException {
     String descriptor =
         "{\"documentId\":\"d\",\"organizationId\":\"o\",\"environment\":\"sandbox\","
             + "\"format\":\"A4\",\"pageCount\":1,\"sizeBytes\":1,\"createdAt\":\"x\","
@@ -71,17 +72,18 @@ class OnErrorTest {
                     : new MockServer.Answer(200, Map.of(), new byte[] {'%', 'P'}))) {
       List<Throwable> errors = new CopyOnWriteArrayList<>();
       PoliPageClient sdk = client(server, errors);
-      Path notAFile = dir.resolve("missing-dir").resolve("out.pdf");
+      // The parent is a regular file, so the target's directory can never exist.
+      java.nio.file.Files.writeString(dir.resolve("not-a-dir"), "x");
+      Path notAFile = dir.resolve("not-a-dir").resolve("out.pdf");
 
       assertThatThrownBy(() -> sdk.renderToFile(INPUT, notAFile))
           .isInstanceOfSatisfying(
               PoliPageException.class,
               e -> {
                 assertThat(e.code()).isEqualTo("io_error");
-                // The message names the target, not the hidden temporary file.
+                assertThat(e.getCause()).isInstanceOf(java.nio.file.NotDirectoryException.class);
                 assertThat(e.getMessage())
-                    .isEqualTo("Failed to write PDF to " + notAFile + ": NoSuchFileException");
-                assertThat(e.getCause().getMessage()).endsWith(".part");
+                    .isEqualTo("Failed to write PDF: " + notAFile + ": Not a directory");
               });
       assertThatThrownBy(() -> sdk.renderToFileAsync(INPUT, notAFile).join())
           .cause()

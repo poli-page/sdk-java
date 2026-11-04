@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-02
+
+Conformance with the Poli Page API contract v0.13.0
+([poli-page/api-contract](https://github.com/poli-page/api-contract)). From
+this release the SDK shares its major.minor with the Poli Page API: SDK
+`0.13.x` goes with API `0.13`, so there is no Java `0.12.x`. See
+[RELEASING.md](RELEASING.md#versions) and
+[MIGRATION.md](MIGRATION.md#from-0110-to-0130).
+
+### Changed
+
+- **BREAKING**: A 2xx API answer whose body is not JSON (an HTML page from a
+  proxy or a captive portal, an empty body, or JSON followed by anything
+  else) is `invalid_response` with the message `Invalid response: HTTP
+  <status> body is not JSON` (was `Failed to parse <path> response as
+  <Type>`). It keeps the real 2xx as `statusCode()` and the answer's
+  `x-request-id` as `requestId()`, and is never retried. JSON followed by
+  other text used to be accepted. JSON of the wrong shape is still
+  `invalid_response`, with the old message naming the expected type; so is
+  a body that is just `null`, which used to return `null` from
+  `documents().get` and `render().document` and throw a
+  `NullPointerException` from `documents().thumbnails`.
+- **BREAKING**: `toPayload()` answers `status` `502` for `invalid_response`
+  (it answered the 2xx). The error's own `statusCode()` keeps the 2xx.
+- **BREAKING**: A presigned-URL download that passes `requestTimeout` fails
+  with `DOWNLOAD_FAILED` and the message `Failed to download PDF: timeout`
+  (was `Failed to download PDF: network error`). It still has no status and
+  is never retried. Only a timeout that fired gives this message; a dropped
+  connection, or a body shorter than its `Content-Length`, stays `network
+  error`.
+- **BREAKING**: `render().pdfStream()`, `renderAsync().pdfStream()`,
+  `renderToFile` and `renderToFileAsync` now bound the download's body with
+  `requestTimeout` as an idle timeout: each read that waits longer than
+  `requestTimeout` for the next bytes fails with `DOWNLOAD_FAILED`
+  (`Failed to download PDF: timeout`). A stalled storage connection used to
+  block `read()` until it closed. The time the caller spends between two
+  reads does not count, so a large PDF read slowly is not cut off.
+  `render().pdf()` and `downloadPdf()` keep bounding the whole download.
+- **BREAKING**: An `io_error` from `renderToFile` / `renderToFileAsync` has
+  the message `Failed to write PDF: <reason>` (was `Failed to write PDF to
+  <path>: <ExceptionClass>`). The reason always names the target, then the
+  cause: the OS reason for a file-system error, e.g. `Failed to write PDF:
+  /out/invoice.pdf: Permission denied`, or the JDK exception's message for
+  any other I/O error, e.g. `Failed to write PDF: /out/invoice.pdf: No space
+  left on device`. The JDK exception is still `getCause()`, and the target
+  file is still left as it was.
+- **BREAKING**: `renderToFile` / `renderToFileAsync` check the target
+  before any request, so a file that cannot be written no longer costs a
+  render. They fail with `io_error`, leaving everything as it is, when the
+  target exists and is not a regular file (a directory, a FIFO, a device or
+  a socket: `Failed to write PDF: /out/invoice.pdf: not a regular file`) or
+  is not writable, or when its directory is not a directory, cannot be
+  created or is not writable (e.g. `Failed to write PDF: /out/invoice.pdf:
+  Permission denied`). A read-only file used to be replaced, since moving a
+  file into place needs only the directory's permission, and so did an
+  empty directory, a FIFO or a socket; a missing directory failed only
+  after the render. The check reads attributes only and never opens the
+  target.
+- `renderToFile` / `renderToFileAsync` create missing parent directories
+  (a missing directory used to be an `io_error`).
+- `renderToFile` / `renderToFileAsync` follow a symbolic link: the file it
+  points to is replaced and the link stays a link (the link itself used to
+  be replaced by a regular file). An existing target keeps its POSIX
+  permissions (it used to get the defaults of a new file). Its owner and
+  any other hard link to it are not kept: the file is replaced, not
+  rewritten.
+
+### Added
+
+- `PoliPageErrorCode.INVALID_RESPONSE` (`"invalid_response"`) and
+  `PoliPageErrorCode.IO_ERROR` (`"io_error"`). `isRetryable()` is `false`
+  for both.
+- `ErrorPayload` is documented as the integrations' error body: a JSON
+  mapper writes exactly `code`, `message`, `status` and `requestId`, nulls
+  included. The contract tests check these keys and the statuses for
+  `network_error`, `timeout` and `invalid_response` against the contract.
+- Releases check the API contract version: the Release workflow fails when
+  the tag's major.minor differs from the API contract version the
+  workflows pin. `scripts/check-contract-version.sh X.Y.Z` runs the same
+  check by hand. [RELEASING.md](RELEASING.md) explains how versions are
+  numbered.
+
 ## [0.11.0] - 2026-10-30
 
 Conformance with the Poli Page API contract v1.3.0

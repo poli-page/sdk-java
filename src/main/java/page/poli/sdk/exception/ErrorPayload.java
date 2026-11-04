@@ -7,9 +7,11 @@ import org.jspecify.annotations.Nullable;
  * integrations: {@code {code, message, status, requestId}}.
  *
  * <p>{@code status} surfaces the API HTTP status for status-bearing exceptions, {@code 503} for
- * network failures, {@code 504} for timeouts, or {@code null} when no useful status applies (e.g.
- * constructor validation). Integrations write the fields verbatim to the HTTP body (flat JSON) or
- * extract them into RFC 7807 ProblemDetails extensions.
+ * network failures, {@code 504} for timeouts, {@code 502} for {@code invalid_response}, or {@code
+ * null} when no useful status applies (e.g. constructor validation). Integrations write the fields
+ * verbatim to the HTTP body (flat JSON) or extract them into RFC 7807 ProblemDetails extensions. A
+ * JSON mapper writes exactly the four keys {@code code}, {@code message}, {@code status} and {@code
+ * requestId}, nulls included: the error body every Poli Page integration answers with.
  *
  * @param code the wire-level error code from the API
  * @param message the human-readable error message

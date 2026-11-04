@@ -16,7 +16,7 @@ Best for documents that fit comfortably in process memory.
 
 ## Streaming (`render().pdfStream`)
 
-For large PDFs or piping straight to an HTTP response or object store, use `pdfStream` and let the SDK keep memory bounded. The returned `InputStream` owns the underlying HTTP connection — wrap it in `try-with-resources` or leak a connection slot. `requestTimeout` bounds the wait for the download's headers; the body is then read at your pace, with no idle timeout, so a stalled storage connection blocks `read()` until it closes. A connection that drops mid-body throws `DOWNLOAD_FAILED` from `read()`.
+For large PDFs or piping straight to an HTTP response or object store, use `pdfStream` and let the SDK keep memory bounded. The returned `InputStream` owns the underlying HTTP connection — wrap it in `try-with-resources` or leak a connection slot. `requestTimeout` is an idle timeout here: it bounds the wait for the download's headers, then each `read()` that waits for the next bytes. The time you spend between two reads does not count, so a large PDF read at your pace is not cut off, but a storage connection that stops sending fails `read()` with `DOWNLOAD_FAILED` (`Failed to download PDF: timeout`). A connection that drops mid-body throws `DOWNLOAD_FAILED` (`Failed to download PDF: network error`) from `read()`.
 
 ```java
 try (InputStream stream = client.render().pdfStream(input)) {
@@ -26,7 +26,7 @@ try (InputStream stream = client.render().pdfStream(input)) {
 
 ## Write to file (`renderToFile`)
 
-`PoliPageClient.renderToFile(input, path)` streams bytes to disk with bounded memory. The PDF goes to a temporary file next to the destination, which is then moved onto it (atomically where the file system can): a call that fails or is cancelled never leaves a partial file. The destination is either as it was or replaced by the complete PDF (a cancel that lands once the download is complete may still replace it).
+`PoliPageClient.renderToFile(input, path)` streams bytes to disk with bounded memory. The PDF goes to a temporary file next to the destination, which is then moved onto it (atomically where the file system can): a call that fails or is cancelled never leaves a partial file. The destination is either as it was or replaced by the complete PDF (a cancel that lands once the download is complete may still replace it). A symbolic link is followed: the file it points to is replaced and the link stays a link. An existing file keeps its POSIX permissions; its owner and any other hard link to it are not kept, since the file is replaced, not rewritten. Missing parent directories are created. Before any request, the call fails with `io_error`, leaving everything as it is, when the target exists and is not a regular file (a directory, a FIFO, a device or a socket: `Failed to write PDF: <path>: not a regular file`) or is not writable, or when its directory is not writable; so a file that cannot be written never costs a render. The check reads attributes only and never opens the target. A file that cannot be written throws `io_error` (`Failed to write PDF: <reason>`, the JDK exception as `getCause()`); the download's own failures, a stall past `requestTimeout` included, throw `DOWNLOAD_FAILED`.
 
 ```java
 client.renderToFile(input, Path.of("./invoices/INV-001.pdf"));

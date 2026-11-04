@@ -49,7 +49,14 @@ class PoliPageErrorCodeTest {
           "TEMPLATE_UNSAFE");
 
   private static final List<String> SDK_CODES =
-      List.of("network_error", "timeout", "aborted", "invalid_options", "DOWNLOAD_FAILED");
+      List.of(
+          "network_error",
+          "timeout",
+          "aborted",
+          "invalid_options",
+          "DOWNLOAD_FAILED",
+          "invalid_response",
+          "io_error");
 
   private static List<String> declaredValues() throws IllegalAccessException {
     List<String> values = new ArrayList<>();

@@ -21,20 +21,20 @@ Official Java SDK for [Poli Page](https://poli.page) — render polished PDFs fr
 <dependency>
     <groupId>page.poli</groupId>
     <artifactId>sdk</artifactId>
-    <version>0.11.0</version>
+    <version>0.13.0</version>
 </dependency>
 ```
 
 Gradle (Kotlin DSL):
 
 ```kotlin
-implementation("page.poli:sdk:0.11.0")
+implementation("page.poli:sdk:0.13.0")
 ```
 
 Gradle (Groovy DSL):
 
 ```groovy
-implementation 'page.poli:sdk:0.11.0'
+implementation 'page.poli:sdk:0.13.0'
 ```
 
 Prereleases (a version with a suffix such as `-RC1`, see [CONTRIBUTING.md](CONTRIBUTING.md#stable-vs-prerelease-channels)) resolve only when you pin that exact version, e.g. `<version>X.Y.Z-RC1</version>` or `page.poli:sdk:X.Y.Z-RC1`.
@@ -248,10 +248,12 @@ Exception hierarchy:
 - `PoliPageValidationException` — 400 / 422. Bad input payload.
 - `PoliPageRateLimitException` — 429. Exposes `retryAfter()`.
 - `PoliPageNetworkException` — DNS / TCP / TLS / timeout. Retryable.
-- `PoliPageDownloadException` — `DOWNLOAD_FAILED`: the presigned-URL download failed (commonly URL expiry: storage status 403), or got no answer (status 0). Never retried.
+- `PoliPageDownloadException` — `DOWNLOAD_FAILED`: the presigned-URL download failed (commonly URL expiry: storage status 403), got no answer or broke off (status 0, `Failed to download PDF: network error`), or passed `requestTimeout` (status 0, `Failed to download PDF: timeout`). Never retried.
 - `PoliPageInvalidOptionsException` — the client builder was given invalid options (e.g. no `apiKey`).
 
-`code()` is the API's code verbatim (compare against the constants in `PoliPageErrorCode`); a code the SDK does not know passes through unchanged.
+`code()` is the API's code verbatim (compare against the constants in `PoliPageErrorCode`); a code the SDK does not know passes through unchanged. The base `PoliPageException` also carries the SDK's `invalid_response` (a 2xx API answer whose body is not JSON: `Invalid response: HTTP <status> body is not JSON`, with that 2xx as `statusCode()`) and `io_error` (`renderToFile` could not write the file: `Failed to write PDF: <reason>`, the JDK exception as `getCause()`). Neither is retried.
+
+`toPayload()` returns the error body for framework integrations: exactly `code`, `message`, `status` and `requestId`, with `status` `503` for `network_error`, `504` for `timeout` and `502` for `invalid_response`.
 
 `PoliPageException` is a `RuntimeException` so callers can choose where to handle it — Java's checked-exception model would force every call site to declare or catch otherwise, which doesn't match modern Java SDK practice (see Stripe Java, AWS SDK v2, Google Cloud client libraries).
 
@@ -261,7 +263,7 @@ Async callers receive the exception wrapped in `CompletionException`: unwrap wit
 
 ### Blocking surface
 
-Per-attempt timeout via the builder's `requestTimeout` (default 60s). When the timeout expires and the retry budget is spent, the SDK throws `PoliPageException` with `code() == PoliPageErrorCode.TIMEOUT`.
+Per-attempt timeout via the builder's `requestTimeout` (default 60s). When the timeout expires and the retry budget is spent, the SDK throws `PoliPageException` with `code() == PoliPageErrorCode.TIMEOUT`. The same value bounds the presigned-URL download (the whole download for `pdf()`, each wait for bytes for `pdfStream()`); a download past it throws `DOWNLOAD_FAILED` with `Failed to download PDF: timeout`, not retried.
 
 ```java
 PoliPageClient client = PoliPageClient.builder()

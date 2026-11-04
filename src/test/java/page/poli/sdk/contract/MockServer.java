@@ -25,8 +25,9 @@ import org.jspecify.annotations.Nullable;
  * A local HTTP/1.1 server on a real socket, answering scripted replies in arrival order and
  * recording every request. Faults are what a client can meet in production: {@link Drop} closes the
  * connection after the request arrived, without a byte of answer; {@link Hang} never answers;
- * {@link Answer#breakBodyAfter} closes the connection part-way through the body; {@link
- * Answer#dripMillis} sends the body one byte at a time.
+ * {@link Stall} sends the headers and maybe part of the body, then nothing more; {@link
+ * Answer#breakBodyAfter} closes the connection part-way through the body; {@link Answer#dripMillis}
+ * sends the body one byte at a time.
  *
  * <p>Connections are kept alive between answers, as a production server does, so that a client
  * reusing a pooled connection meets the same failures there.
@@ -61,15 +62,23 @@ public final class MockServer implements AutoCloseable {
   public record Hang() implements Reply {}
 
   /**
-   * Send the status line and headers, announcing {@code contentLength} body bytes, then never send
-   * the body.
+   * Send the status line and headers, announcing {@code contentLength} body bytes, then the first
+   * bytes of the body ({@code prefix}, possibly none), then nothing more: the connection stays
+   * open.
    *
    * @param status the status code
    * @param headers response headers
    * @param contentLength the announced body length
+   * @param prefix the body bytes sent before the stall
    */
-  public record Stall(int status, Map<String, String> headers, int contentLength)
-      implements Reply {}
+  public record Stall(int status, Map<String, String> headers, int contentLength, byte[] prefix)
+      implements Reply {
+
+    /** Headers only: no byte of the body. */
+    public Stall(int status, Map<String, String> headers, int contentLength) {
+      this(status, headers, contentLength, new byte[0]);
+    }
+  }
 
   /** Chooses the reply to the request with this 0-based arrival index. */
   @FunctionalInterface
@@ -268,6 +277,7 @@ public final class MockServer implements AutoCloseable {
           stall.headers().forEach((k, v) -> head.append(k).append(": ").append(v).append("\r\n"));
           head.append("Content-Length: ").append(stall.contentLength()).append("\r\n\r\n");
           out.write(head.toString().getBytes(StandardCharsets.ISO_8859_1));
+          out.write(stall.prefix());
           out.flush();
         }
         if (reply instanceof Hang || reply instanceof Stall) {

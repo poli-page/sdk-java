@@ -54,6 +54,7 @@ import page.poli.sdk.PoliPageClient;
 import page.poli.sdk.RequestEvent;
 import page.poli.sdk.RetryEvent;
 import page.poli.sdk.exception.PoliPageException;
+import page.poli.sdk.exception.PoliPageNetworkException;
 import page.poli.sdk.input.RenderInput;
 import page.poli.sdk.model.DocumentPreviewResult;
 import page.poli.sdk.model.Orientation;
@@ -245,6 +246,36 @@ class ContractTest {
                   + ", but isRetryable() is true for it with status "
                   + status);
         }
+      }
+    }
+    // toPayload() is the error body integrations answer with: the contract's keys, and the status
+    // it fixes for the SDK codes that have no HTTP status of their own (or a 2xx one).
+    List<String> bodyKeys = new ArrayList<>();
+    contract.path("policy").path("implErrorBody").forEach(key -> bodyKeys.add(key.asText()));
+    List<String> payloadKeys = new ArrayList<>();
+    JSON.valueToTree(new PoliPageException("x", 0, "x", null, null).toPayload())
+        .fieldNames()
+        .forEachRemaining(payloadKeys::add);
+    if (!new java.util.HashSet<>(payloadKeys).equals(new java.util.HashSet<>(bodyKeys))) {
+      fileProblems.add(
+          "policy.implErrorBody is " + bodyKeys + ", but toPayload() writes " + payloadKeys);
+    }
+    for (Map.Entry<String, JsonNode> entry :
+        contract.path("policy").path("implStatusForSdkCode").properties()) {
+      String code = entry.getKey();
+      PoliPageException error =
+          code.equals("network_error") || code.equals("timeout")
+              ? new PoliPageNetworkException(code, "x", null)
+              : new PoliPageException(code, 200, "x", null, null);
+      Integer status = error.toPayload().status();
+      if (status == null || status != entry.getValue().asInt()) {
+        fileProblems.add(
+            "policy.implStatusForSdkCode gives "
+                + code
+                + " the status "
+                + entry.getValue()
+                + ", but toPayload() answers "
+                + status);
       }
     }
     boolean runsCancellation = false;

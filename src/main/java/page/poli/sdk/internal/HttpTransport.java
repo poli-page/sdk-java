@@ -11,9 +11,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Default {@link Transport}, backed by the JDK's {@link HttpClient}. Every request carries a {@link
- * SingleExchangeBody}, so the client never resends it by itself, and the attempt timeout as {@link
- * HttpRequest.Builder#timeout(Duration)}; the JDK stops that timer once the headers arrive, so
- * {@link RetryLoop} and {@link Download} also bound the whole exchange, body included.
+ * SingleExchangeBody}, so the client never resends it by itself. An API request also carries the
+ * attempt timeout as {@link HttpRequest.Builder#timeout(Duration)}; up to JDK 25 the JDK stops that
+ * timer once the headers arrive, so {@link RetryLoop} also bounds the whole attempt, body included.
+ * The presigned-URL download carries none: {@link Download} bounds it.
  */
 public final class HttpTransport implements Transport {
 
@@ -67,11 +68,17 @@ public final class HttpTransport implements Transport {
     return http.sendAsync(request.build(), handler);
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>No JDK request timeout: {@link Download} bounds the download itself, the whole of it for the
+   * bytes and each wait for bytes for a stream. On JDK 26 and later the JDK's request timeout also
+   * covers the body, so it would cut a large PDF that a caller streams at its own pace.
+   */
   @Override
   public <T> CompletableFuture<HttpResponse<T>> download(URI url, BodyHandler<T> handler) {
     HttpRequest request =
         HttpRequest.newBuilder(url)
-            .timeout(requestTimeout)
             .header("User-Agent", USER_AGENT)
             .method("GET", SingleExchangeBody.empty())
             .build();

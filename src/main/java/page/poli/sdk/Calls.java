@@ -1,5 +1,7 @@
 package page.poli.sdk;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -89,19 +91,56 @@ final class Calls {
         capture -> transport.send("POST", path, json, key, capture), "POST", url(path));
   }
 
-  /** Read a 2xx JSON body; a body that does not parse is {@code invalid_response}. */
+  /**
+   * Read a 2xx JSON body. A body that is not JSON (an HTML page from a proxy or a captive portal,
+   * an empty body, JSON followed by anything else) is {@code invalid_response} with the message
+   * {@code Invalid response: HTTP <status> body is not JSON}, the real 2xx status and the answer's
+   * request id. JSON that does not fit {@code type} is {@code invalid_response} too, naming the
+   * type. Both come after the retry loop, so neither is retried.
+   */
   <T> T json(HttpResponse<byte[]> response, String path, Class<T> type) {
+    JsonNode tree;
     try {
-      return mapper.readValue(response.body(), type);
+      tree =
+          mapper
+              .reader()
+              .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+              .readTree(response.body());
     } catch (IOException e) {
-      throw failed(
-          new PoliPageException(
-              "invalid_response",
-              response.statusCode(),
-              "Failed to parse " + path + " response as " + type.getSimpleName(),
-              response.headers().firstValue(REQUEST_ID_HEADER).orElse(null),
-              e));
+      throw failed(invalidResponse(response, notJson(response), e));
     }
+    if (tree == null || tree.isMissingNode()) {
+      throw failed(invalidResponse(response, notJson(response), null));
+    }
+    T value;
+    try {
+      value = mapper.treeToValue(tree, type);
+    } catch (IOException e) {
+      throw failed(invalidResponse(response, wrongShape(path, type), e));
+    }
+    if (value == null) {
+      // A literal JSON null binds to null: the answer is JSON, but not the expected object.
+      throw failed(invalidResponse(response, wrongShape(path, type), null));
+    }
+    return value;
+  }
+
+  private static String wrongShape(String path, Class<?> type) {
+    return "Failed to parse " + path + " response as " + type.getSimpleName();
+  }
+
+  private static String notJson(HttpResponse<byte[]> response) {
+    return "Invalid response: HTTP " + response.statusCode() + " body is not JSON";
+  }
+
+  private static PoliPageException invalidResponse(
+      HttpResponse<byte[]> response, String message, @Nullable Throwable cause) {
+    return new PoliPageException(
+        PoliPageErrorCode.INVALID_RESPONSE,
+        response.statusCode(),
+        message,
+        response.headers().firstValue(REQUEST_ID_HEADER).orElse(null),
+        cause);
   }
 
   private byte[] serialize(Object body) {

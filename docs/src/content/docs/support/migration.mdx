@@ -5,6 +5,10 @@ description: Upgrade guides for moving between major versions of the Java SDK.
 
 This page tracks breaking changes between major versions of `page.poli:sdk`. For the full per-release diff, see the [changelog](../changelog/).
 
+## v0.13.0
+
+Conformance with the Poli Page API contract v0.13.0, and the SDK's version now follows the API's major.minor (there is no Java 0.12.x). A 2xx answer whose body is not JSON is `invalid_response` with the message `Invalid response: HTTP <status> body is not JSON` and `toPayload()` status `502`; a download past `requestTimeout` is `DOWNLOAD_FAILED` with `Failed to download PDF: timeout`, and `pdfStream()` / `renderToFile` now have an idle timeout; `io_error` reads `Failed to write PDF: <reason>`. The full entry is in [`MIGRATION.md` in the repo](https://github.com/poli-page/sdk-java/blob/main/MIGRATION.md#from-0110-to-0130).
+
 ## v0.11.0
 
 Conformance with the Poli Page API contract v1.3.0: three error codes are never retried, `PoliPageErrorCode.DOWNLOAD_FAILED` is now `"DOWNLOAD_FAILED"` (recompile against the new version), and SDK error messages follow the SDK specification. The full entry is in [`MIGRATION.md` in the repo](https://github.com/poli-page/sdk-java/blob/main/MIGRATION.md#from-0100-to-0110).
