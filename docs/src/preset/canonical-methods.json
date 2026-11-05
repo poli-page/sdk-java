@@ -2,15 +2,15 @@
     "methods": [
         {
             "slug": "render",
-            "names": { "go": "Render", "node": "render", "php": "render", "python": "render", "ruby": "render", "rust": "render" }
+            "names": { "csharp": "Render.PdfAsync", "go": "Render", "java": "render().pdf", "node": "render", "php": "render", "python": "render", "ruby": "render", "rust": "render" }
         },
         {
             "slug": "render-stream",
-            "names": { "go": "RenderStream", "node": "renderStream", "php": "renderStream", "python": "render_stream", "ruby": "render_stream", "rust": "render_stream" }
+            "names": { "csharp": "Render.PdfStreamAsync", "go": "RenderStream", "java": "render().pdfStream", "node": "renderStream", "php": "renderStream", "python": "render_stream", "ruby": "render_stream", "rust": "render_stream" }
         },
         {
             "slug": "render-to-file",
-            "names": { "go": "RenderToFile", "node": "renderToFile", "php": "renderToFile", "python": "render_to_file", "ruby": "render_to_file", "rust": "render_to_file" }
+            "names": { "csharp": "RenderToFileAsync", "go": "RenderToFile", "java": "renderToFile", "node": "renderToFile", "php": "renderToFile", "python": "render_to_file", "ruby": "render_to_file", "rust": "render_to_file" }
         }
     ]
 }

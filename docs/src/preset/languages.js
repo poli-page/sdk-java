@@ -1,7 +1,7 @@
 export const LANGUAGES = {
-    // Java added locally; the upstream preset has no java entry yet.
-    java: { id: 'java', displayName: 'Java', exampleExt: '.java', packageKind: 'maven' },
+    csharp: { id: 'csharp', displayName: 'C#', exampleExt: '.cs', packageKind: 'nuget' },
     go: { id: 'go', displayName: 'Go', exampleExt: '.go', packageKind: 'go-module' },
+    java: { id: 'java', displayName: 'Java', exampleExt: '.java', packageKind: 'maven' },
     node: { id: 'node', displayName: 'Node.js', exampleExt: '.ts', packageKind: 'npm' },
     php: { id: 'php', displayName: 'PHP', exampleExt: '.php', packageKind: 'composer' },
     python: { id: 'python', displayName: 'Python', exampleExt: '.py', packageKind: 'pypi' },

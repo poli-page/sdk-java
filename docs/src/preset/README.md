@@ -1,6 +1,6 @@
 # Vendored Starlight preset
 
-The files in this directory are vendored from the reference repo `sdk-docs-preset`, at commit `0d97ffb` (`0d97ffbf58812793088cff212aceb46e3a549f6b`). They define the shared sidebar, theme, lint plugins, and Astro components used by every Poli Page SDK and integration doc site. This site uses the preset's SDK profile (the default).
+The files in this directory are vendored from the reference repo `sdk-docs-preset`, at commit `d423279` (`d423279201720ef03c576e41b2e30ac649e10fb2`). They define the shared sidebar, theme, lint plugins, and Astro components used by every Poli Page SDK and integration doc site. This site uses the preset's SDK profile (the default).
 
 **This is a copy, not a dependency.** The site does not depend on any npm package named `@poli-page/starlight-preset`. Imports use the local alias `@preset` (configured in `astro.config.mjs` and `tsconfig.json`).
 
@@ -24,10 +24,9 @@ When the upstream preset changes:
 
 ## Local edit
 
-The copy differs from upstream `dist/` in two ways:
+The copy differs from upstream `dist/` in one way:
 
 - `theme.js`: `POLI_PAGE_CSS_PATH` is `'@preset/styles/poli-page.css'` instead of `'@poli-page/starlight-preset/styles/poli-page.css'`, so the CSS resolves through the local alias. Every SDK site makes the same edit.
-- `languages.js`: a local `java` entry (`displayName: 'Java'`, `packageKind: 'maven'`), because the upstream preset has no `java` language yet. Re-add it at every sync until upstream gains it, then drop it.
 
 ## What is NOT vendored
 
