@@ -1,6 +1,7 @@
 export const LANGUAGES = {
-    go: { id: 'go', displayName: 'Go', exampleExt: '.go', packageKind: 'go-module' },
+    // Java added locally; the upstream preset has no java entry yet.
     java: { id: 'java', displayName: 'Java', exampleExt: '.java', packageKind: 'maven' },
+    go: { id: 'go', displayName: 'Go', exampleExt: '.go', packageKind: 'go-module' },
     node: { id: 'node', displayName: 'Node.js', exampleExt: '.ts', packageKind: 'npm' },
     php: { id: 'php', displayName: 'PHP', exampleExt: '.php', packageKind: 'composer' },
     python: { id: 'python', displayName: 'Python', exampleExt: '.py', packageKind: 'pypi' },
@@ -13,4 +14,3 @@ export function getLanguage(id) {
         throw new Error(`unknown language: ${String(id)}`);
     return lang;
 }
-//# sourceMappingURL=languages.js.map
