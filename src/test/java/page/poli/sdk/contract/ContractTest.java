@@ -88,7 +88,7 @@ import page.poli.sdk.model.ThumbnailOptions;
 class ContractTest {
 
   /** The contract.json layout this file reads (README of poli-page/api-contract). */
-  private static final int FORMAT_VERSION = 1;
+  private static final int FORMAT_VERSION = 2;
 
   /** This SDK's name in {@code policy.cancellationSdks}. */
   private static final String SDK_NAME = "java";
@@ -479,6 +479,16 @@ class ContractTest {
         describeRequests(server.requests(), wantRequests, apiKey),
         substitutedRequests);
     compare(problems, "onRequest / onRetry events", describeEvents(events, wantEvents), wantEvents);
+    if (c.path("expect").has("minCallMs")) {
+      long min = c.path("expect").get("minCallMs").asLong();
+      // N-DURATION-MS: the call's duration on a monotonic clock, in integer milliseconds.
+      long took = Math.round(outcome.elapsedNanos() / 1e6);
+      compare(
+          problems,
+          "minCallMs",
+          took >= min ? NODES.numberNode(min) : NODES.textNode("only " + took + " ms"),
+          NODES.numberNode(min));
+    }
     if (checkResult) {
       compare(
           problems,
@@ -640,18 +650,26 @@ class ContractTest {
   // ===================================================================
 
   /** The call's result: a normalized value, an error, or no return in time. */
-  private record Outcome(@Nullable JsonNode value, @Nullable Throwable error, boolean timedOut) {
+  private record Outcome(
+      @Nullable JsonNode value,
+      @Nullable Throwable error,
+      boolean timedOut,
+      long elapsedNanos) {
 
-    static Outcome ok(JsonNode value) {
-      return new Outcome(value, null, false);
+    static Outcome ok(JsonNode value, long elapsedNanos) {
+      return new Outcome(value, null, false, elapsedNanos);
+    }
+
+    static Outcome failed(Throwable error, long elapsedNanos) {
+      return new Outcome(null, error, false, elapsedNanos);
     }
 
     static Outcome failed(Throwable error) {
-      return new Outcome(null, error, false);
+      return failed(error, 0);
     }
 
     static Outcome hung() {
-      return new Outcome(null, null, true);
+      return new Outcome(null, null, true, 0);
     }
 
     JsonNode normalized() {
@@ -692,10 +710,14 @@ class ContractTest {
     Thread worker =
         new Thread(
             () -> {
+              // The clock starts right before the call and stops when it returns or throws,
+              // before anything is compared or the mock closes (sdk-specification.md section 12.1).
+              long started = System.nanoTime();
               try {
-                done.complete(Outcome.ok(sdkCall.run()));
+                JsonNode value = sdkCall.run();
+                done.complete(Outcome.ok(value, System.nanoTime() - started));
               } catch (Throwable t) {
-                done.complete(Outcome.failed(unwrap(t)));
+                done.complete(Outcome.failed(unwrap(t), System.nanoTime() - started));
               }
             },
             "contract-call");
