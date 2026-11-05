@@ -651,10 +651,7 @@ class ContractTest {
 
   /** The call's result: a normalized value, an error, or no return in time. */
   private record Outcome(
-      @Nullable JsonNode value,
-      @Nullable Throwable error,
-      boolean timedOut,
-      long elapsedNanos) {
+      @Nullable JsonNode value, @Nullable Throwable error, boolean timedOut, long elapsedNanos) {
 
     static Outcome ok(JsonNode value, long elapsedNanos) {
       return new Outcome(value, null, false, elapsedNanos);
