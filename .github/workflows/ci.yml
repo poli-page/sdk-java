@@ -7,10 +7,6 @@ on:
 
 permissions:
   contents: read
-  # Required by codecov-action's use_oidc: true so it can mint a short-lived
-  # OIDC token. Codecov rejects unauthenticated uploads on the default
-  # (protected) branch, and we don't keep a CODECOV_TOKEN secret.
-  id-token: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -18,6 +14,12 @@ concurrency:
 
 jobs:
   test:
+    # id-token: write is for the Codecov OIDC upload in this job only.
+    # contents: read is restated because a job-level block replaces the
+    # workflow-level one.
+    permissions:
+      contents: read
+      id-token: write
     name: Java ${{ matrix.java }} on ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -69,7 +71,7 @@ jobs:
       # JaCoCo XML lives at target/site/jacoco/jacoco.xml after `mvn verify`.
       # Only upload once (Ubuntu+Java 21). use_oidc: true is mandatory:
       # Codecov rejects tokenless uploads on the default (protected) branch,
-      # and we've granted id-token: write at the workflow level. No
+      # and we've granted id-token: write at the job level. No
       # CODECOV_TOKEN secret needed. fail_ci_if_error stays false so a
       # Codecov outage or rate-limit never blocks the build.
       - name: Upload coverage to Codecov
@@ -79,6 +81,8 @@ jobs:
           files: target/site/jacoco/jacoco.xml
           use_oidc: true
           fail_ci_if_error: false
+          # Upload only the file above: the CLI's own search would also find the example apps' reports.
+          disable_search: true
 
       - name: Javadoc
         run: ./mvnw -B javadoc:javadoc
