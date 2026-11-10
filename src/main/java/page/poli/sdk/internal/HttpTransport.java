@@ -12,9 +12,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Default {@link Transport}, backed by the JDK's {@link HttpClient}. Every request carries a {@link
  * SingleExchangeBody}, so the client never resends it by itself. No request carries a JDK timeout
- * ({@link HttpRequest.Builder#timeout(Duration)}): the JDK's timer reads the wall clock and
- * truncates the time left to whole milliseconds, so it can fire early, and up to JDK 25 it stops
- * once the headers arrive. {@link RetryLoop} bounds each API attempt, body included, and {@link
+ * ({@link HttpRequest.Builder#timeout(Duration)}): the JDK's timer truncates the time left to
+ * whole milliseconds (and reads the wall clock up to JDK 25), so it can fire early, and up to JDK
+ * 25 it stops once the headers arrive. {@link RetryLoop} bounds each API attempt, body included, and {@link
  * Download} bounds the presigned-URL download, both on the monotonic clock and never early.
  */
 public final class HttpTransport implements Transport {

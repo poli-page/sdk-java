@@ -23,8 +23,8 @@ import javax.net.ssl.SSLParameters;
 import org.junit.jupiter.api.Test;
 
 /**
- * No request carries a JDK timeout: the JDK's timer reads the wall clock and truncates the time
- * left to whole milliseconds (JDK 17 to 25), so it can fire before the bound ({@code R-WAIT-FULL}).
+ * No request carries a JDK timeout: the JDK's timer truncates the time left to whole milliseconds
+ * (and reads the wall clock up to JDK 25), so it can fire before the bound ({@code R-WAIT-FULL}).
  * The SDK's own monotonic timers bound the attempt and the download.
  */
 class HttpTransportTest {
