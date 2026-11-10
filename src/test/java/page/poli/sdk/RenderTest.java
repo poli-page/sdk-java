@@ -385,6 +385,34 @@ class RenderTest {
     }
 
     @Test
+    void render_400_template_unsafe_throws_PoliPageValidationException_and_is_not_retried(
+        WireMockRuntimeInfo wm) {
+      stubRenderError(
+          400,
+          "TEMPLATE_UNSAFE",
+          "Unsafe construct in templates/invoice/invoice.html: <script> element.");
+      PoliPageClient client =
+          PoliPageClient.builder()
+              .apiKey(TEST_KEY)
+              .baseUrl(URI.create(wm.getHttpBaseUrl()))
+              .maxRetries(2)
+              .build();
+
+      assertThatThrownBy(() -> client.render().pdf(simpleInput()))
+          .isExactlyInstanceOf(PoliPageValidationException.class)
+          .hasMessage("Unsafe construct in templates/invoice/invoice.html: <script> element.")
+          .satisfies(
+              t -> {
+                PoliPageValidationException ex = (PoliPageValidationException) t;
+                assertThat(ex.code()).isEqualTo(PoliPageErrorCode.TEMPLATE_UNSAFE);
+                assertThat(ex.statusCode()).isEqualTo(400);
+                assertThat(ex.requestId()).isEqualTo("req_test_42");
+                assertThat(ex.isRetryable()).isFalse();
+              });
+      verify(1, postRequestedFor(urlEqualTo("/v1/render")));
+    }
+
+    @Test
     void render_429_throws_PoliPageRateLimitException_with_retry_after(WireMockRuntimeInfo wm) {
       stubFor(
           post(urlEqualTo("/v1/render"))
