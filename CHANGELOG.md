@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (and reads the wall clock up to JDK 25), so it can fire up to a millisecond
   before the bound. Only the SDK's own monotonic timer bounds an attempt now, as it
   already did the download.
+- Docs: the `PoliPageValidationException` Javadoc names `TEMPLATE_UNSAFE`
+  (400, not retried) among the validation codes.
 
 ## [0.13.0] - 2026-11-02
 

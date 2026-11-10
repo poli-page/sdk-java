@@ -6,7 +6,8 @@ import org.jspecify.annotations.Nullable;
  * The request payload failed validation. HTTP {@code 400} or {@code 422}. Covers codes like {@code
  * VALIDATION_ERROR}, {@code MISSING_DATA}, {@code MISSING_TEMPLATE_SLUG}, {@code
  * PROJECT_REQUIRED_FOR_DOCUMENT}, {@code ENVIRONMENT_MISMATCH}, {@code EMPTY_DOCUMENT}, {@code
- * TEMPLATE_ERROR}.
+ * TEMPLATE_ERROR}, {@code TEMPLATE_UNSAFE} (the template, a partial or an SVG asset holds script or
+ * another injection attempt; the message names it).
  *
  * <p>Not retryable — fix the input and try again.
  */
