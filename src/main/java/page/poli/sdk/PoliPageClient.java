@@ -616,8 +616,7 @@ public final class PoliPageClient {
       HttpClient http = newHttpClient();
       ObjectMapper mapper = newObjectMapper();
       Hooks hooks = new Hooks(opts.onRequest(), opts.onResponse(), opts.onRetry(), opts.onError());
-      Transport transport =
-          new HttpTransport(opts.baseUrl(), opts.apiKey(), opts.requestTimeout(), http);
+      Transport transport = new HttpTransport(opts.baseUrl(), opts.apiKey(), http);
       RetryLoop retry =
           new RetryLoop(
               opts.maxRetries(),

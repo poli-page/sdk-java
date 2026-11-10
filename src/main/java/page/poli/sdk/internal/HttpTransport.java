@@ -11,10 +11,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Default {@link Transport}, backed by the JDK's {@link HttpClient}. Every request carries a {@link
- * SingleExchangeBody}, so the client never resends it by itself. An API request also carries the
- * attempt timeout as {@link HttpRequest.Builder#timeout(Duration)}; up to JDK 25 the JDK stops that
- * timer once the headers arrive, so {@link RetryLoop} also bounds the whole attempt, body included.
- * The presigned-URL download carries none: {@link Download} bounds it.
+ * SingleExchangeBody}, so the client never resends it by itself. No request carries a JDK timeout
+ * ({@link HttpRequest.Builder#timeout(Duration)}): the JDK's timer truncates the time left to whole
+ * milliseconds (and reads the wall clock up to JDK 25), so it can fire early, and up to JDK 25 it
+ * stops once the headers arrive. {@link RetryLoop} bounds each API attempt, body included, and
+ * {@link Download} bounds the presigned-URL download, both on the monotonic clock and never early.
  */
 public final class HttpTransport implements Transport {
 
@@ -22,19 +23,16 @@ public final class HttpTransport implements Transport {
 
   private final URI baseUrl;
   private final String apiKey;
-  private final Duration requestTimeout;
   private final HttpClient http;
 
   /**
    * @param baseUrl absolute base URL — paths are resolved against this
    * @param apiKey value for the {@code Authorization: Bearer …} header
-   * @param requestTimeout per-attempt timeout
    * @param http the JDK HTTP client
    */
-  public HttpTransport(URI baseUrl, String apiKey, Duration requestTimeout, HttpClient http) {
+  public HttpTransport(URI baseUrl, String apiKey, HttpClient http) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
-    this.requestTimeout = requestTimeout;
     this.http = http;
   }
 
@@ -52,7 +50,6 @@ public final class HttpTransport implements Transport {
       BodyHandler<T> handler) {
     HttpRequest.Builder request =
         HttpRequest.newBuilder(Urls.join(baseUrl, path))
-            .timeout(requestTimeout)
             .header("Authorization", "Bearer " + apiKey)
             .header("Accept", "application/json")
             .header("User-Agent", USER_AGENT);
