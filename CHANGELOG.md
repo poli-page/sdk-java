@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-17
+
+Conformance with the Poli Page API contract v0.15.0
+([poli-page/api-contract](https://github.com/poli-page/api-contract)). The
+SDK shares its major.minor with the Poli Page API, so it moves from 0.13 to
+0.15 (see [RELEASING.md](RELEASING.md#versions)). No public API change:
+upgrading needs no code change.
+
+### Changed
+
+- CI, the integration tests and the Release workflow run the API contract
+  v0.15.0 (format 2): the harness fails a call that returns sooner than the
+  case's `expect.minCallMs`, timed on a monotonic clock, which the
+  `timeout.hang` and `download.timeout` cases now use instead of a
+  per-request `minGapMsBefore`. The contract adds the retry rule
+  R-WAIT-FULL: no wait ends early (see the attempt timeout fix below).
+- The `User-Agent` carries `poli-page-sdk-java/0.15.0`.
+
 ### Fixed
 
 - The attempt timeout never fires early. API requests also carried the JDK's
