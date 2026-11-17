@@ -1,5 +1,6 @@
 # Poli Page SDK for Java
 
+[![Maven central](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo1.maven.org%2Fmaven2%2Fpage%2Fpoli%2Fsdk%2Fmaven-metadata.xml&style=flat&logo=openjdk&logoColor=ffffff&label=Maven%20central)](https://central.sonatype.com/artifact/page.poli/sdk)
 [![Ci](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/ci.yml?branch=main&style=flat&logo=githubactions&logoColor=ffffff&label=Ci)](https://github.com/poli-page/sdk-java/actions/workflows/ci.yml)
 [![Codeql](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-java/codeql.yml?branch=main&style=flat&logo=github&logoColor=ffffff&label=Codeql)](https://github.com/poli-page/sdk-java/actions/workflows/codeql.yml)
 [![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-java?style=flat&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-java)
